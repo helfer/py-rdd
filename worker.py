@@ -1,6 +1,14 @@
 import threading
 import SocketServer
 from SimpleXMLRPCServer import SimpleXMLRPCServer
+import xmlrpclib
+import types
+import marshal
+import base64
+
+#todo: custom timeout
+#todo: way of dropping rpc calls before processing or after processing
+#todo: way of introducing random delays
 
 class ThreadedRPCServer(SocketServer.ThreadingMixIn,SimpleXMLRPCServer):
     pass
@@ -19,6 +27,8 @@ class Worker(threading.Thread):
         self.server.register_function(self.transform)
         self.server.register_function(self.ping)
         self.server.register_function(self.stop_server)
+        self.server.register_function(self.put_data)
+        #self.server.register_function()
 
         self.data = dict()
 
@@ -35,29 +45,55 @@ class Worker(threading.Thread):
         self.stop_flag = True
         return "OK"
 
-    def transform(self,key_in,op,key_out,data_location = None):
+    def transform(self,keys_in,key_out,code_string,data_location = None):
         #unserialize op
         #get data
         #if data is on remote server:
+        #print code_string
+        code_string = base64.b64decode(code_string)
+        code = marshal.loads(code_string)
+        func = types.FunctionType(code, globals(), "some_func_name")
+        data_in = []
+        for key in keys_in:
+            if key in self.data:
+                data_in.append(self.data[key])
+            else:
+                data_in.append(self.get_data_remote(data_location[key],key))
 
-        data = data[key]
-        out = map(op,data)
-        data[key] = out
+        #self.data[key_out] = data_in
+        self.data[key_out] = func(data_in)
+        #data = data[key]
+        #out = map(op,data)
+        #data[key] = out
 
         return "OK"
 
+    def put_data(self,key,value):
+        self.data[key] = value
+        return "OK"
+
     def delete_data(self,key):
-        del(self.data[key])    
+        del(self.data[key])   
+        return "OK" 
 
     def get_data(self,key):
         if key in self.data:
             return self.data[key]
         else:
-            raise KeyError
+            print repr(key)
+            print repr(self.data)
+            print "sever",self.port,"does not have key",key,"in",self.data
+            return []
     def ping(self):
          return "alive, listening on port",self.port 
 
-    def get_remote(self,host,key):
+    def get_data_remote(self,hostport,key):
+        host,port = hostport
+        #todo: keep the servers in memory, don't redo every time
+        s = xmlrpclib.ServerProxy('http://'+host+':'+str(port))
+        data = s.get_data(key)
+        return data
+
         pass
         #connect to remote server
         #get data
