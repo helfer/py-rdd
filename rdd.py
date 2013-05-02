@@ -1,19 +1,22 @@
 import uuid
+import threading
+##import collections
 
-## for now, each shard of an RDD is just stored as a dictionary on the worker.
+## for now, each shard of an RDD should just be stored as a dictionary on the worker.
 
 ## Scheduler-local class representing a single RDD
 class RDD:
   def __init__(self, hash_data, parents = None):
-    self.hash_function, self.hash_num = hash_data
+    self.hash_function, self.hash_grain = hash_data
     self.parents = parents
     for parent in parents:
       parent.add_child(self)
     self.children = []
     self.uid = uuid.uuid1()
-    ## Plenty of other ways to do that, but this one's convenient for now.
     self.in_mem = False
-    self.worker_assignments = {}
+    self.worker_assignments = {} ## map: partition num -> [workers]
+    self.done = {} ## map: partition num -> bool
+    self.lock = threading.Lock()
 
   def add_child(self, child):
     self.children.append(child)
