@@ -20,10 +20,6 @@ class RPCServer(SimpleXMLRPCServer):
     self.server_close()
 
 
-class Dependency:
-  Narrow, Wide = 0, 1
-
-
 class WorkerHandler:
   def __init__(self, uri, uid):
     self.skipcount = 0
@@ -43,8 +39,9 @@ class WorkerHandler:
 
 class Scheduler:
   def __init__(self, hostname, port, max_skipcount = 22):
-    self.workers = {}
-    self.idle_workers = {}
+    self.workers = set()
+    self.idle_workers = set()
+    ## The above might be problematic if we can't hash classes!
     self.lock = threading.Lock()
     self.queue = Queue.PriorityQueue()
     self.dead = False
@@ -122,7 +119,7 @@ class Worker:
     self.uid = uuid.uuid1()
     self.uri = 'http://%s:%d' % (hostname, port)
 
-  def register(self):
+  def register_with_scheduler(self):
     self.proxy.add_worker(self.uid, self.uri)
 
   def query(self, rdd_id, hash_num):
@@ -132,6 +129,13 @@ class Worker:
       ## TODO
       raise KeyError("RDD data not present on worker")
 
-  def process(self):
-    ## TODO
-    pass
+  def process(self, serialized_rdd):
+    rdd = rdd.deserialize(serialized_rdd)
+
+
+  def run(self):
+    self.server_thread = threading.Thread(target =
+                                          self.server.serve_while_alive)
+    self.server_thread.start()
+    print "Worker %s running" % self.uid
+
