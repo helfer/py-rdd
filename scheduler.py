@@ -1,6 +1,8 @@
 import rdd
 import Queue
 import threading
+import uuid
+import xmlrpclib
 ##import SocketServer
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 
@@ -22,36 +24,39 @@ class Dependency:
   Narrow, Wide = 0, 1
 
 
-class WorkerData:
-  def __init__(self):
-    self._skipcount = 0
+class WorkerHandler:
+  def __init__(self, uri, uid):
+    self.skipcount = 0
+    self.proxy = xmlrpclib.ServerProxy(uri)
+    self.uid = uid
+    self.uri = uri
     ## TODO
 
   def skip(self):
-    self._skipcount += 1
+    self.skipcount += 1
 
   def reset(self):
-    self._skipcount = 0
+    self.skipcount = 0
 
   def get_skipcount(self):
-    return self._skipcount
-
+    return self.skipcount
 
 class Scheduler:
-  def __init__(self, host, port, workers = [], max_skipcount = 22):
-    self.workers = set(workers)
-    self.idle_workers = self.workers.copy()
+  def __init__(self, hostname, port, max_skipcount = 22):
+    self.workers = {}
+    self.idle_workers = {}
     self.lock = threading.Lock()
     self.queue = Queue.PriorityQueue()
     self.dead = False
     self.max_skipcount = max_skipcount
 
-    self.server = RPCServer((host, port))
+    self.server = RPCServer((hostname, port))
     self.server.register_function(self.free_worker)
     self.server.register_function(self.log_completion)
+    self.server.register_function(self.add_worker)
 
-  def add_worker(self, worker):
-    ## TODO: register ID number with worker
+  def add_worker(self, worker_uri, worker_uid):
+    worker = WorkerHandler(worker_uri, worker_uid)
     self.workers.add(worker)
     self.idle_workers.add(worker)
 
@@ -109,10 +114,16 @@ class Scheduler:
 #################
 
 class Worker:
-  def __init__(self, host, port):
-    self.server = RPCServer((host, port))
+  def __init__(self, hostname, port, scheduler_uri):
+    self.server = RPCServer((hostname, port))
     self.server.register(self.query)
     self.data = {} ## map: (rdd_id, hash_num) -> dict
+    self.proxy = xmlrpclib.ServerProxy(scheduler_uri)
+    self.uid = uuid.uuid1()
+    self.uri = 'http://%s:%d' % (hostname, port)
+
+  def register(self):
+    self.proxy.add_worker(self.uid, self.uri)
 
   def query(self, rdd_id, hash_num):
    if self.data.has_key((rdd_id, hash_num)):
@@ -124,5 +135,3 @@ class Worker:
   def process(self):
     ## TODO
     pass
-
-
