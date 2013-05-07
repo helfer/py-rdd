@@ -67,12 +67,11 @@ class MapValuesRDD(RDD):
       output[key] = self.function(data)
     return output
 
+class JoinRDD(RDD):
+  def __init__(self, parent1, parent2):
+    RDD.__init__(self, (parent1.hash_function, parent1.hash_grain), parents =
+        [(parent1, Dependency.Narrow), (parent2, Dependency.Narrow)])
 
-
-
-
-
-
-
+  ## TODO
 
 ## etc.

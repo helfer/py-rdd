@@ -103,8 +103,8 @@ class Scheduler:
     fails.
     task -- pair (rdd, hash num)
     worker -- WorkerHandler instance
-    dependencies -- map (rdd uid, hash num) --> [workers]"""
-    ## TODO
+    dependencies -- dictionary (rdd uid, hash num) --> [workers]"""
+    ## TODO: worker also needs to know about hash function
     rdd, hash_num = task
     ## serialize compute function
     computation = marshal.dumps(rdd.compute.func_code)
@@ -145,14 +145,24 @@ class Worker:
   def register_with_scheduler(self):
     self.proxy.add_worker(self.uid, self.uri)
 
-  def query(self, rdd_id, hash_num):
-   if self.data.has_key((rdd_id, hash_num)):
+  def query_by_hash(self, rdd_id, hash_num):
+    if self.data.has_key((rdd_id, hash_num)):
       return self.data[(rdd_id, hash_num)]
-   else:
+    else:
       ## TODO
       raise KeyError("RDD data not present on worker")
 
+  def query_by_filter(self, rdd_id, filter_func):
+    ## return all key/value pairs in the specified rdd for which filter_func(key) is true.
+    func = types.FunctionType(marshal.loads(filter_func), {})
+    output = {}
+    for key, data in self.data:
+      if rdd_id == key[0]:
+        output.update([(k, v) for k, v in data.items() if func(k)])
+    return update
+
   def run_task(self, rdd_id, hash_num, computation, parent_ids, peers, dependencies):
+    ## TODO
     pass
 
   def run(self):
