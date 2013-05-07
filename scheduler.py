@@ -1,4 +1,5 @@
 import rdd
+import itertools
 import Queue
 import threading
 import uuid
@@ -20,13 +21,12 @@ class RPCServer(SimpleXMLRPCServer):
     self.server_close()
 
 
-class WorkerHandler:
+class WorkerHandler(xmlrpclib.ServerProxy):
   def __init__(self, uri, uid):
+    xmlrpclib.ServerProxy.__init__(self, uri)
     self.skipcount = 0
-    self.proxy = xmlrpclib.ServerProxy(uri)
     self.uid = uid
     self.uri = uri
-    ## TODO
 
   def skip(self):
     self.skipcount += 1
@@ -37,11 +37,11 @@ class WorkerHandler:
   def get_skipcount(self):
     return self.skipcount
 
+
 class Scheduler:
   def __init__(self, hostname, port, max_skipcount = 22):
     self.workers = set()
     self.idle_workers = set()
-    ## The above might be problematic if we can't hash classes!
     self.lock = threading.Lock()
     self.queue = Queue.PriorityQueue()
     self.dead = False
@@ -65,33 +65,34 @@ class Scheduler:
       pass
 
   def execute(self, rdd):
-    ## backtrack in the lineage graph from rdd
-    ## until all parents are either in-memory
-    ## or root nodes
-    if rdd.get_mem_status():
-      return
-    elif len(rdd.parents) == 0:
-      schedule(rdd)
-    else:
-      for parent in rdd.parents:
-        parent.execute()
+    pass
 
-  def schedule(self, rdd):
-    ## for now each parent RDD has to complete before we launch any part of
-    ## this one
-    unfinished_parents = True
-    while unfinished_parents:
-      unfinished_parents = False
-      for parent in rdd.parents:
-        if not parent.get_mem_status():
-          unfinished_parents = True
-          ## TODO: sleep here?
+  def schedule(self, rdd, hash_num):
+    ## TODO: decide if we want task-oriented or worker-oriented scheduling
+    ## right now: task-oriented
+    dependencies = rdd.get_locality_info(hash_num)
+    preferred_workers = itertools.chain.from_iterable(dependencies.values())
+    assigned_worker = None
+    while True:
+      if len(preferred_workers) == 0 and len(self.idle_workers) > 0:
+        with self.lock:
+          assigned_worker = preferred_workers.pop()
           break
-    ## TODO
+      else:
+        for worker in self.idle_workers:
+          if worker.uid in preferred_workers or
+             worker.skipcount == self.max_skipcount:
+            with self.lock:
+              self.idle_workers.remove(worker)
+            assigned_worker = worker
+            break
+          else:
+            worker.skip()
+    rdd.worker_assignments[hash_num].append(preferred_worker)
+    assigned_worker.reset_skipcount()
+    threading.Thread(target = self.dispatch,
+                     args = ((rdd, hash_num), assigned_worker, dependencies))
 
-  def free_worker(self, worker):
-    with self.lock:
-      self.idle_workers.add(worker)
 
   def log_completion(self, rdd, hash_num):
     with rdd.lock:
@@ -104,6 +105,17 @@ class Scheduler:
                                           self.server.serve_while_alive)
     self.server_thread.start()
     print "scheduler running"
+
+  def dispatch(self, task, worker, dependencies):
+    """Send a single task to a worker. Blocks until the task either completes or
+    fails.
+    task -- pair (rdd uid, hash num)
+    worker -- WorkerHandler instance
+    dependencies -- map (rdd uid, hash num) --> [worker uids]"""
+    pass
+
+
+
 
 
 #################
