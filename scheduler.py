@@ -48,8 +48,6 @@ class Scheduler:
     self.max_skipcount = max_skipcount
 
     self.server = RPCServer((hostname, port))
-    self.server.register_function(self.free_worker)
-    self.server.register_function(self.log_completion)
     self.server.register_function(self.add_worker)
 
   def add_worker(self, worker_uri, worker_uid):
@@ -65,11 +63,18 @@ class Scheduler:
       pass
 
   def execute(self, rdd):
-    pass
+    for parent, dependency in rdd.parents:
+      if not parent.fully_scheduled:
+        self.execute(parent)
+    for hash_num in range(rdd.hash_grain):
+      self.schedule(rdd, hash_num)
+    rdd.fully_scheduled = True
+
 
   def schedule(self, rdd, hash_num):
     ## TODO: decide if we want task-oriented or worker-oriented scheduling
-    ## right now: task-oriented
+    ## right now: task-oriented. I.e., tasks are strictly scheduled in graph
+    ## traversal order
     dependencies = rdd.get_locality_info(hash_num)
     preferred_workers = itertools.chain.from_iterable(dependencies.values())
     assigned_worker = None
@@ -80,42 +85,47 @@ class Scheduler:
           break
       else:
         for worker in self.idle_workers:
-          if worker.uid in preferred_workers or
-             worker.skipcount == self.max_skipcount:
+          if (worker in preferred_workers or
+             worker.skipcount == self.max_skipcount):
             with self.lock:
               self.idle_workers.remove(worker)
             assigned_worker = worker
             break
           else:
             worker.skip()
-    rdd.worker_assignments[hash_num].append(preferred_worker)
+    rdd.set_assignment(hash_num, preferred_worker)
     assigned_worker.reset_skipcount()
     threading.Thread(target = self.dispatch,
                      args = ((rdd, hash_num), assigned_worker, dependencies))
 
-
-  def log_completion(self, rdd, hash_num):
+  def dispatch(self, task, worker, dependencies):
+    """Send a single task to a worker. Blocks until the task either completes or
+    fails.
+    task -- pair (rdd, hash num)
+    worker -- WorkerHandler instance
+    dependencies -- map (rdd uid, hash num) --> [workers]"""
+    ## TODO
+    rdd, hash_num = task
+    ## serialize compute function
+    computation = marshal.dumps(rdd.compute.func_code)
+    with self.lock:
+      peers = dict([(worker.uid, worker.uri) for worker in workers])
+    ## replace WorkerHandler references with uids
+    dependencies = dict([(key, worker.uid) for key, value in
+      dependencies.items()])
+    parent_ids = [parent.uid for parent, dependency in rdd.parents]
+    ## Send task to worker and wait for completion
+    worker.run_task(rdd.uid, hash_num, computation, parent_ids, peers,
+        dependencies)
+    ## mark task as complete
     with rdd.lock:
-      rdd.done[hash_num] = True
-      if len(rdd.done) == rdd.hash_grain:
-        rdd.set_mem_status(True)
+      rdd.task_status[hash_num] = rdd.TaskStatus.Complete
 
   def run(self):
     self.server_thread = threading.Thread(target =
                                           self.server.serve_while_alive)
     self.server_thread.start()
     print "scheduler running"
-
-  def dispatch(self, task, worker, dependencies):
-    """Send a single task to a worker. Blocks until the task either completes or
-    fails.
-    task -- pair (rdd uid, hash num)
-    worker -- WorkerHandler instance
-    dependencies -- map (rdd uid, hash num) --> [worker uids]"""
-    pass
-
-
-
 
 
 #################
@@ -125,7 +135,8 @@ class Scheduler:
 class Worker:
   def __init__(self, hostname, port, scheduler_uri):
     self.server = RPCServer((hostname, port))
-    self.server.register(self.query)
+    self.server.register_function(self.query)
+    self.server.register_function(self.compute)
     self.data = {} ## map: (rdd_id, hash_num) -> dict
     self.proxy = xmlrpclib.ServerProxy(scheduler_uri)
     self.uid = uuid.uuid1()
@@ -141,9 +152,8 @@ class Worker:
       ## TODO
       raise KeyError("RDD data not present on worker")
 
-  def process(self, serialized_rdd):
-    rdd = rdd.deserialize(serialized_rdd)
-
+  def run_task(self, rdd_id, hash_num, computation, parent_ids, peers, dependencies):
+    pass
 
   def run(self):
     self.server_thread = threading.Thread(target =

@@ -21,19 +21,14 @@ class RDD:
       self.children.append(child)
     self.children = []
     self.uid = uuid.uuid1()
-    self.in_mem = False
-    self.worker_assignment = collections.defaultdict(list) ## map: hash_num -> [worker_uids]
+    self.scheduled = False
+    self.worker_assignment = collections.defaultdict(list) ## map: hash_num -> [workers]
     self.task_status = collections.defaultdict(lambda : TaskStatus.Unscheduled) ## map: hash_num -> bool
     self.lock = threading.Lock()
 
-  def get_mem_status(self):
-    return self.in_mem
-
-  def set_mem_status(self, status):
-    self.in_mem = status
-
-  def assign(self, hash_num, worker_uid):
-    self.worker_assignments[hash_num].append(worker_uid)
+  def set_assignment(self, hash_num, worker):
+    self.worker_assignments[hash_num].append(worker)
+    self.task_status[hash_num] = TaskStatus.Assigned
 
   def get_locality_info(self, hash_num):
     """Given a hash number, return the data location of any scheduled or
@@ -46,6 +41,10 @@ class RDD:
           locations[(parent.uid, hash_num)] = parent.worker_assignment[hash_num]
     return locations
 
+  def compute(self, data):
+    ## implemented by derived classes
+    pass
+
 
 class Dependency:
   Narrow, Wide = 0, 1
@@ -56,7 +55,24 @@ class TextFileRDD(RDD):
   pass
 
 
-class MapRDD(RDD):
-  pass
+class MapValuesRDD(RDD):
+  def __init__(self, function, parent):
+    RDD.__init__(self, (parent.hash_function, parent.hash_grain), parents =
+        [(parent, Dependency.Narrow)])
+    self.function = function
+
+  def compute(self, data):
+    output = {}
+    for key, value in data:
+      output[key] = self.function(data)
+    return output
+
+
+
+
+
+
+
+
 
 ## etc.
