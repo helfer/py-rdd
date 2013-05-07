@@ -135,8 +135,10 @@ class Scheduler:
 class Worker:
   def __init__(self, hostname, port, scheduler_uri):
     self.server = RPCServer((hostname, port))
-    self.server.register_function(self.query)
+    self.server.register_function(self.query_by_hash_num)
+    self.server.register_function(self.query_by_filter)
     self.server.register_function(self.compute)
+    self.server.register_function(self.lookup)
     self.data = {} ## map: (rdd_id, hash_num) -> dict
     self.proxy = xmlrpclib.ServerProxy(scheduler_uri)
     self.uid = uuid.uuid1()
@@ -145,7 +147,7 @@ class Worker:
   def register_with_scheduler(self):
     self.proxy.add_worker(self.uid, self.uri)
 
-  def query_by_hash(self, rdd_id, hash_num):
+  def query_by_hash_num(self, rdd_id, hash_num):
     if self.data.has_key((rdd_id, hash_num)):
       return self.data[(rdd_id, hash_num)]
     else:
@@ -160,6 +162,9 @@ class Worker:
       if rdd_id == key[0]:
         output.update([(k, v) for k, v in data.items() if func(k)])
     return update
+
+  def lookup(self, rdd_id, hash_num, key):
+    return self.data[(rdd_id, hash_num)][key]
 
   def run_task(self, rdd_id, hash_num, computation, parent_ids, peers, dependencies):
     ## TODO

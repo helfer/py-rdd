@@ -45,6 +45,15 @@ class RDD:
     ## implemented by derived classes
     pass
 
+  def map(self, function):
+    return MapValuesRDD(function, self)
+
+  def join(self, coparent):
+    return JoinRDD(self, coparent)
+
+  def lookup(self, key):
+    hash_num = self.hash_function(key)
+    return self.worker_assignments[hash_num][0].lookup(self.uid, hash_num, key)
 
 class Dependency:
   Narrow, Wide = 0, 1
