@@ -125,7 +125,7 @@ class Scheduler:
     parent_ids = [parent.uid for parent, dependency in rdd.parents]
     ## Send task to worker and wait for completion
     print "scheduler calling worker %s" % assigned_worker.uri
-    assigned_worker.run_task(rdd.uid, hash_num, computation, parent_ids, peers, dependencies)
+    worker.run_task(rdd.uid, hash_num, computation, parent_ids, peers, dependencies)
     #assigned_worker.hello_world()
     ## mark task as complete
     
