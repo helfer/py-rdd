@@ -15,6 +15,8 @@ class TaskStatus:
 class RDD:
   def __init__(self, hash_data, parents = None):
     ## parents should be a list of pairs (RDD, dependency_type)
+    if parents is None:
+        parents = []
     self.hash_function, self.hash_grain = hash_data
     self.parents = parents
     for parent in parents:
@@ -22,7 +24,7 @@ class RDD:
     self.children = []
     self.uid = uuid.uuid1()
     self.scheduled = False
-    self.worker_assignment = collections.defaultdict(list) ## map: hash_num -> [workers]
+    self.worker_assignments = collections.defaultdict(list) ## map: hash_num -> [workers]
     self.task_status = collections.defaultdict(lambda : TaskStatus.Unscheduled) ## map: hash_num -> bool
     self.lock = threading.Lock()
 
@@ -38,7 +40,7 @@ class RDD:
       if dependency == Narrow:
         status = parent.task_status[hash_num]
         if status == TaskStatus.Assigned or status == TaskStatus.Complete:
-          locations[(parent.uid, hash_num)] = parent.worker_assignment[hash_num]
+          locations[(parent.uid, hash_num)] = parent.worker_assignments[hash_num]
     return locations
 
   def compute(self, data):
@@ -61,7 +63,10 @@ class Dependency:
 
 ## For each supported transformation, we have a class derived from RDD
 class TextFileRDD(RDD):
-  pass
+  
+    def __init__(self,filename,hash_data = (hash,3)):
+        RDD.__init__(self,hash_data)
+        self.filename = filename
 
 
 class MapValuesRDD(RDD):
@@ -84,3 +89,7 @@ class JoinRDD(RDD):
   ## TODO
 
 ## etc.
+
+
+def simple_hash(key):
+    return hash(key)
