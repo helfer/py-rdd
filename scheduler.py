@@ -1,4 +1,5 @@
 import rdd
+import pickle
 import itertools
 import Queue
 import threading
@@ -125,10 +126,16 @@ class Scheduler:
     parent_ids = [parent.uid for parent, dependency in rdd.parents]
     ## Send task to worker and wait for completion
     print "scheduler calling worker %s" % assigned_worker.uri
+<<<<<<< HEAD
     worker.run_task(rdd.uid, hash_num, computation, parent_ids, peers, dependencies)
+=======
+    pickled_arg = pickle.dumps((rdd.uid, hash_num, computation, parent_ids, peers,
+      dependencies))
+    assigned_worker.run_task(pickled_arg)
+>>>>>>> 03379d71e9eb8755b77cf8e3215950080fecdeba
     #assigned_worker.hello_world()
     ## mark task as complete
-    
+
     #with rdd.lock:
     #  rdd.task_status[hash_num] = rdd.TaskStatus.Complete
 
@@ -137,56 +144,3 @@ class Scheduler:
     #self.server_thread.start()
     #print "scheduler running"
     #pass
-
-
-#################
-## Worker code ##
-#################
-
-class Worker:
-  def __init__(self, hostname, port):#, scheduler_uri):
-    self.server = RPCServer((hostname, port))
-    self.server.register_function(self.query_by_hash_num)
-    self.server.register_function(self.query_by_filter)
-    self.server.register_function(self.compute)
-    self.server.register_function(self.lookup)
-    self.data = {} ## map: (rdd_id, hash_num) -> dict
-    #self.proxy = xmlrpclib.ServerProxy(scheduler_uri)
-    self.uid = uuid.uuid1()
-    self.uri = 'http://%s:%d' % (hostname, port)
-
-  #def register_with_scheduler(self):
-  #  self.proxy.add_worker(self.uid, self.uri)
-
-  def query_by_hash_num(self, rdd_id, hash_num):
-    if self.data.has_key((rdd_id, hash_num)):
-      return self.data[(rdd_id, hash_num)]
-    else:
-      ## TODO
-      raise KeyError("RDD data not present on worker")
-
-  def query_by_filter(self, rdd_id, filter_func):
-    ## return all key/value pairs in the specified rdd for which filter_func(key) is true.
-    func = types.FunctionType(marshal.loads(filter_func), {})
-    output = {}
-    for key, data in self.data:
-      if rdd_id == key[0]:
-        output.update([(k, v) for k, v in data.items() if func(k)])
-    return update
-
-  def lookup(self, rdd_id, hash_num, key):
-    return self.data[(rdd_id, hash_num)][key]
-
-  def run_task(self, rdd_id, hash_num, computation, parent_ids, peers, dependencies):
-    ## TODO
-    print "Worker %s running task %s-%s" % (self.uid,rdd_id,hash_num)
-    pass
-
-  def run(self):
-    self.server_thread = threading.Thread(target =
-                                          self.server.serve_while_alive)
-    self.server_thread.start()
-    print "Worker %s running" % self.uid
-
-  def read_data(self,rdd_id,hash_num,part_func,filename):
-    print "Worker %s reading %s" % (self.uid,filename)

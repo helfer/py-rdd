@@ -1,4 +1,5 @@
 import uuid
+import pickle
 import rdd
 import SocketServer
 import threading
@@ -42,7 +43,7 @@ class Worker(threading.Thread):
     #self.server.register_function(self.put_data)
     #self.server.register_function()
     self.server.register_function(self.hello_world)
- 
+
 
   #def register_with_scheduler(self):
   #  self.proxy.add_worker(self.uid, self.uri)
@@ -62,7 +63,7 @@ class Worker(threading.Thread):
   def stop_server(self):
     self.stop_flag = True
     return "OK"
-  
+
   def query_by_hash_num(self, rdd_id, hash_num):
     if self.data.has_key((rdd_id, hash_num)):
       return self.data[(rdd_id, hash_num)]
@@ -82,8 +83,9 @@ class Worker(threading.Thread):
   def lookup(self, rdd_id, hash_num, key):
     return self.data[(rdd_id, hash_num)][key]
 
-  def run_task(self, rdd_id, hash_num, computation, parent_ids, peers, dependencies):
-    ## TODO
+  def run_task(self, pickled_arg):
+    arg = pickle.loads(pickled_arg)
+    rdd_id, hash_num, computation, parent_ids, peers, dependencies = arg
     print "Worker %s running task %s-%s" % (self.uid,rdd_id,hash_num)
     return "OK"
 
