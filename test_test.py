@@ -22,7 +22,6 @@ try:
     for i in range(N):
         workers.append(worker.Worker("localhost",baseport+i))
         workers[i].start()
-        workers[i].stop_server()
 
 
     lines = rdd.TextFileRDD("in.pickle")

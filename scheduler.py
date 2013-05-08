@@ -1,4 +1,3 @@
-import time
 import rdd
 import itertools
 import Queue
@@ -108,7 +107,7 @@ class Scheduler:
                      args = ((rdd, hash_num), assigned_worker, dependencies))
     dispatch_thread.start()
 
-  def dispatch(self, task, worker, dependencies):
+  def dispatch(self, task, assigned_worker, dependencies):
     """Send a single task to a worker. Blocks until the task either completes or
     fails.
     task -- pair (rdd, hash num)
@@ -125,13 +124,13 @@ class Scheduler:
       dependencies.items()])
     parent_ids = [parent.uid for parent, dependency in rdd.parents]
     ## Send task to worker and wait for completion
-    worker.run_task(rdd.uid, hash_num, computation, parent_ids, peers,
-        dependencies)
+    print "scheduler calling worker %s" % assigned_worker.uri
+    assigned_worker.run_task(rdd.uid, hash_num, computation, parent_ids, peers, dependencies)
+    #assigned_worker.hello_world()
     ## mark task as complete
-    with rdd.lock:
-      rdd.task_status[hash_num] = rdd.TaskStatus.Complete
-    with self.lock:
-      self.idle_workers.add(worker)
+    
+    #with rdd.lock:
+    #  rdd.task_status[hash_num] = rdd.TaskStatus.Complete
 
   #def run(self):
     #self.server_thread = threading.Thread(target = self.server.serve_while_alive)

@@ -41,6 +41,7 @@ class Worker(threading.Thread):
     self.server.register_function(self.stop_server)
     #self.server.register_function(self.put_data)
     #self.server.register_function()
+    self.server.register_function(self.hello_world)
  
 
   #def register_with_scheduler(self):
@@ -84,7 +85,12 @@ class Worker(threading.Thread):
   def run_task(self, rdd_id, hash_num, computation, parent_ids, peers, dependencies):
     ## TODO
     print "Worker %s running task %s-%s" % (self.uid,rdd_id,hash_num)
-    pass
+    return "OK"
 
   def read_data(self,rdd_id,hash_num,part_func,filename):
     print "Worker %s reading %s" % (self.uid,filename)
+    return "OK"
+
+  def hello_world(self):
+    print "Hello world from %s" % self.uri
+    return "OK"
