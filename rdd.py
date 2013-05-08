@@ -68,7 +68,6 @@ class TextFileRDD(RDD):
         RDD.__init__(self,hash_data)
         self.filename = filename
 
-
 class MapValuesRDD(RDD):
   def __init__(self, function, parent):
     RDD.__init__(self, (parent.hash_function, parent.hash_grain), parents =

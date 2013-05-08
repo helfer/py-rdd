@@ -1,3 +1,4 @@
+import time
 import rdd
 import itertools
 import Queue
@@ -129,6 +130,8 @@ class Scheduler:
     ## mark task as complete
     with rdd.lock:
       rdd.task_status[hash_num] = rdd.TaskStatus.Complete
+    with self.lock:
+      self.idle_workers.add(worker)
 
   #def run(self):
     #self.server_thread = threading.Thread(target = self.server.serve_while_alive)
