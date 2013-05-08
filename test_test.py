@@ -3,7 +3,7 @@ import xmlrpclib
 import marshal
 import types
 import base64
-
+import traceback
 import scheduler
 import rdd
 
@@ -17,15 +17,25 @@ servers = []
 rpcs = []
 
 
+workers = []
+try:
+    for i in range(N):
+        workers.append(worker.Worker("localhost",baseport+i))
+        workers[i].start()
+        workers[i].stop_server()
 
-lines = rdd.TextFileRDD("in.pickle")
-sched = scheduler.Scheduler("localhost",8112)
-sched.add_worker("w1",1)
-sched.add_worker("w1",2)
-sched.add_worker("w1",3)
-sched.add_worker("w1",4)
-sched.execute(lines)
 
+    lines = rdd.TextFileRDD("in.pickle")
+    sched = scheduler.Scheduler("localhost",8112)
+    for i in range(N):
+        sched.add_worker("http://%s:%d" % ("localhost",baseport+i),i)
+    sched.execute(lines)
+except Exception as e:
+    print e
+    traceback.print_exc()    
+finally:
+    for i in range(len(workers)):
+        workers[i].stop_server()
 
 exit()
 

@@ -5,6 +5,7 @@ import threading
 import uuid
 import xmlrpclib
 import time
+import marshal
 ##import SocketServer
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 
@@ -22,9 +23,9 @@ class RPCServer(SimpleXMLRPCServer):
     self.server_close()
 
 
-class WorkerHandler():#xmlrpclib.ServerProxy):
+class WorkerHandler(xmlrpclib.ServerProxy):
   def __init__(self, uri, uid):
-    #xmlrpclib.ServerProxy.__init__(self, uri)
+    xmlrpclib.ServerProxy.__init__(self, uri)
     self.skipcount = 0
     self.uid = uid
     self.uri = uri
@@ -37,6 +38,9 @@ class WorkerHandler():#xmlrpclib.ServerProxy):
 
   def get_skipcount(self):
     return self.skipcount
+
+  def __hash__(self):
+    return hash(self.uid)
 
 
 class Scheduler:
@@ -99,8 +103,9 @@ class Scheduler:
     rdd.set_assignment(hash_num, assigned_worker)
     assigned_worker.reset_skipcount()
     print "worker assigned",str(assigned_worker)
-    threading.Thread(target = self.dispatch,
+    dispatch_thread = threading.Thread(target = self.dispatch,
                      args = ((rdd, hash_num), assigned_worker, dependencies))
+    dispatch_thread.start()
 
   def dispatch(self, task, worker, dependencies):
     """Send a single task to a worker. Blocks until the task either completes or
@@ -113,9 +118,9 @@ class Scheduler:
     ## serialize compute function
     computation = marshal.dumps(rdd.compute.func_code)
     with self.lock:
-      peers = dict([(worker.uid, worker.uri) for worker in workers])
+      peers = dict([(worker.uid, worker.uri) for worker in self.workers])
     ## replace WorkerHandler references with uids
-    dependencies = dict([(key, worker.uid) for key, value in
+    dependencies = dict([(key, worker.uid) for key, worker in
       dependencies.items()])
     parent_ids = [parent.uid for parent, dependency in rdd.parents]
     ## Send task to worker and wait for completion
@@ -137,19 +142,19 @@ class Scheduler:
 #################
 
 class Worker:
-  def __init__(self, hostname, port, scheduler_uri):
+  def __init__(self, hostname, port):#, scheduler_uri):
     self.server = RPCServer((hostname, port))
     self.server.register_function(self.query_by_hash_num)
     self.server.register_function(self.query_by_filter)
     self.server.register_function(self.compute)
     self.server.register_function(self.lookup)
     self.data = {} ## map: (rdd_id, hash_num) -> dict
-    self.proxy = xmlrpclib.ServerProxy(scheduler_uri)
+    #self.proxy = xmlrpclib.ServerProxy(scheduler_uri)
     self.uid = uuid.uuid1()
     self.uri = 'http://%s:%d' % (hostname, port)
 
-  def register_with_scheduler(self):
-    self.proxy.add_worker(self.uid, self.uri)
+  #def register_with_scheduler(self):
+  #  self.proxy.add_worker(self.uid, self.uri)
 
   def query_by_hash_num(self, rdd_id, hash_num):
     if self.data.has_key((rdd_id, hash_num)):

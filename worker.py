@@ -1,5 +1,7 @@
-import threading
+import uuid
+import rdd
 import SocketServer
+import threading
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 import xmlrpclib
 import types
@@ -13,90 +15,76 @@ import base64
 class ThreadedRPCServer(SocketServer.ThreadingMixIn,SimpleXMLRPCServer):
     pass
 
+#################
+## Worker code ##
+#################
+
 class Worker(threading.Thread):
+  def __init__(self, hostname, port):#, scheduler_uri):
+    self.server = ThreadedRPCServer((hostname,port))
+    self.server.register_function(self.query_by_hash_num)
+    self.server.register_function(self.query_by_filter)
+    self.server.register_function(self.run_task)
+    self.server.register_function(self.lookup)
+    self.data = {} ## map: (rdd_id, hash_num) -> dict
+    #self.proxy = xmlrpclib.ServerProxy(scheduler_uri)
+    self.uid = uuid.uuid1()
+    self.uri = 'http://%s:%d' % (hostname, port)
 
-    def __init__(self,port,host="localhost"):
-        self.port = port
-        self.stop = False
-        print "binding to port",port
-        threading.Thread.__init__(self)
-        self.daemon = True
+    self.port = port
+    self.stop = False
+    print "binding to port",port
+    threading.Thread.__init__(self)
+    self.daemon = True
 
-        self.server = ThreadedRPCServer((host,port))
-        self.server.register_function(self.get_data)
-        self.server.register_function(self.transform)
-        self.server.register_function(self.ping)
-        self.server.register_function(self.stop_server)
-        self.server.register_function(self.put_data)
-        #self.server.register_function()
+    self.server.register_function(self.read_data)
+    self.server.register_function(self.stop_server)
+    #self.server.register_function(self.put_data)
+    #self.server.register_function()
+ 
 
-        self.data = dict()
+  #def register_with_scheduler(self):
+  #  self.proxy.add_worker(self.uid, self.uri)
 
-    def run(self):
-        self.stop_flag = False
-        while (not self.stop_flag):
-            self.server.handle_request()
-        #self._Thread__stop()
-        #self._stopevent.set()
-        #threading.Thread.join(self)
+  def __hash__(self):
+    return hash(self.uri)
+
+  def run(self):
+    self.stop_flag = False
+    while (not self.stop_flag):
+        self.server.handle_request()
+    #self._Thread__stop()
+    #self._stopevent.set()
+    #threading.Thread.join(self)
 
 
-    def stop_server(self):
-        self.stop_flag = True
-        return "OK"
+  def stop_server(self):
+    self.stop_flag = True
+    return "OK"
+  
+  def query_by_hash_num(self, rdd_id, hash_num):
+    if self.data.has_key((rdd_id, hash_num)):
+      return self.data[(rdd_id, hash_num)]
+    else:
+      ## TODO
+      raise KeyError("RDD data not present on worker")
 
-    def transform(self,keys_in,key_out,code_string,data_location = None):
-        #unserialize op
-        #get data
-        #if data is on remote server:
-        #print code_string
-        code_string = base64.b64decode(code_string)
-        code = marshal.loads(code_string)
-        func = types.FunctionType(code, globals(), "some_func_name")
-        data_in = []
-        for key in keys_in:
-            if key in self.data:
-                data_in.append(self.data[key])
-            else:
-                data_in.append(self.get_data_remote(data_location[key],key))
+  def query_by_filter(self, rdd_id, filter_func):
+    ## return all key/value pairs in the specified rdd for which filter_func(key) is true.
+    func = types.FunctionType(marshal.loads(filter_func), {})
+    output = {}
+    for key, data in self.data:
+      if rdd_id == key[0]:
+        output.update([(k, v) for k, v in data.items() if func(k)])
+    return update
 
-        #self.data[key_out] = data_in
-        self.data[key_out] = func(data_in)
-        #data = data[key]
-        #out = map(op,data)
-        #data[key] = out
+  def lookup(self, rdd_id, hash_num, key):
+    return self.data[(rdd_id, hash_num)][key]
 
-        return "OK"
+  def run_task(self, rdd_id, hash_num, computation, parent_ids, peers, dependencies):
+    ## TODO
+    print "Worker %s running task %s-%s" % (self.uid,rdd_id,hash_num)
+    pass
 
-    def put_data(self,key,value):
-        self.data[key] = value
-        return "OK"
-
-    def delete_data(self,key):
-        del(self.data[key])   
-        return "OK" 
-
-    def get_data(self,key):
-        if key in self.data:
-            return self.data[key]
-        else:
-            print repr(key)
-            print repr(self.data)
-            print "sever",self.port,"does not have key",key,"in",self.data
-            return []
-    def ping(self):
-         return "alive, listening on port",self.port 
-
-    def get_data_remote(self,hostport,key):
-        host,port = hostport
-        #todo: keep the servers in memory, don't redo every time
-        s = xmlrpclib.ServerProxy('http://'+host+':'+str(port))
-        data = s.get_data(key)
-        return data
-
-        pass
-        #connect to remote server
-        #get data
-        #close connection
-        #return
-    
+  def read_data(self,rdd_id,hash_num,part_func,filename):
+    print "Worker %s reading %s" % (self.uid,filename)
