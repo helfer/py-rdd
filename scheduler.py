@@ -1,5 +1,4 @@
 import rdd
-import pickle
 import itertools
 import Queue
 import threading
@@ -7,8 +6,19 @@ import uuid
 import xmlrpclib
 import time
 import marshal
-##import SocketServer
+import pickle
+import base64
 from SimpleXMLRPCServer import SimpleXMLRPCServer
+
+def pds(*args,**kwargs):
+  if len(kwargs) != 0:
+    raise Exception("kwargs pickle not implemented yet")
+  x =  base64.b64encode(pickle.dumps(args))
+  return x
+def pls(p):
+  return pickle.loads(base64.b64decode(p))
+
+
 
 class RPCServer(SimpleXMLRPCServer):
   ## TODO: do we need the threading mixin here?
@@ -126,21 +136,19 @@ class Scheduler:
     parent_ids = [parent.uid for parent, dependency in rdd.parents]
     ## Send task to worker and wait for completion
     print "scheduler calling worker %s" % assigned_worker.uri
-<<<<<<< HEAD
-    worker.run_task(rdd.uid, hash_num, computation, parent_ids, peers, dependencies)
-=======
-    pickled_arg = pickle.dumps((rdd.uid, hash_num, computation, parent_ids, peers,
-      dependencies))
-    assigned_worker.run_task(pickled_arg)
->>>>>>> 03379d71e9eb8755b77cf8e3215950080fecdeba
+    assigned_worker.hello_world()
+    arg = pds(rdd.uid, hash_num, computation, parent_ids, peers, dependencies)
     #assigned_worker.hello_world()
     ## mark task as complete
-
+    
     #with rdd.lock:
     #  rdd.task_status[hash_num] = rdd.TaskStatus.Complete
+    print "scheduler calling worker %s" % assigned_worker.uri
+    assigned_worker.run_task(arg)
 
   #def run(self):
     #self.server_thread = threading.Thread(target = self.server.serve_while_alive)
     #self.server_thread.start()
     #print "scheduler running"
     #pass
+

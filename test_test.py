@@ -6,6 +6,7 @@ import base64
 import traceback
 import scheduler
 import rdd
+import time
 
 # create N clients, different ports
 # create one master, give it ports of clients
@@ -33,8 +34,10 @@ except Exception as e:
     print e
     traceback.print_exc()    
 finally:
+    time.sleep(1)
     for i in range(len(workers)):
-        workers[i].stop_server()
+         print "stopping worker %d" % i
+         workers[i].stop_server()
 
 exit()
 

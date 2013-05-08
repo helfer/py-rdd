@@ -1,5 +1,4 @@
 import uuid
-import pickle
 import rdd
 import SocketServer
 import threading
@@ -7,11 +6,11 @@ from SimpleXMLRPCServer import SimpleXMLRPCServer
 import xmlrpclib
 import types
 import marshal
-import base64
-
+import scheduler
 #todo: custom timeout
 #todo: way of dropping rpc calls before processing or after processing
 #todo: way of introducing random delays
+
 
 class ThreadedRPCServer(SocketServer.ThreadingMixIn,SimpleXMLRPCServer):
     pass
@@ -43,7 +42,7 @@ class Worker(threading.Thread):
     #self.server.register_function(self.put_data)
     #self.server.register_function()
     self.server.register_function(self.hello_world)
-
+ 
 
   #def register_with_scheduler(self):
   #  self.proxy.add_worker(self.uid, self.uri)
@@ -63,7 +62,7 @@ class Worker(threading.Thread):
   def stop_server(self):
     self.stop_flag = True
     return "OK"
-
+  
   def query_by_hash_num(self, rdd_id, hash_num):
     if self.data.has_key((rdd_id, hash_num)):
       return self.data[(rdd_id, hash_num)]
@@ -83,10 +82,9 @@ class Worker(threading.Thread):
   def lookup(self, rdd_id, hash_num, key):
     return self.data[(rdd_id, hash_num)][key]
 
-  def run_task(self, pickled_arg):
-    arg = pickle.loads(pickled_arg)
-    rdd_id, hash_num, computation, parent_ids, peers, dependencies = arg
-    print "Worker %s running task %s-%s" % (self.uid,rdd_id,hash_num)
+  def run_task(self, p):
+    rdd_id, hash_num, computation, parent_ids, peers, dependencies = scheduler.pls(p)
+    print "Worker %s running task %s * %s" % (self.uid,rdd_id,hash_num)
     return "OK"
 
   def read_data(self,rdd_id,hash_num,part_func,filename):
