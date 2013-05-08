@@ -1,3 +1,4 @@
+import time
 import rdd
 import itertools
 import Queue
@@ -93,6 +94,7 @@ class Scheduler:
             break
           else:
             worker.skip()
+      time.sleep(0.1)
     rdd.set_assignment(hash_num, preferred_worker)
     assigned_worker.reset_skipcount()
     threading.Thread(target = self.dispatch,
@@ -120,6 +122,8 @@ class Scheduler:
     ## mark task as complete
     with rdd.lock:
       rdd.task_status[hash_num] = rdd.TaskStatus.Complete
+    with self.lock:
+      self.idle_workers.add(worker)
 
   def run(self):
     self.server_thread = threading.Thread(target =
