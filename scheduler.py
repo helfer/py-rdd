@@ -5,6 +5,7 @@ import Queue
 import threading
 import uuid
 import xmlrpclib
+import time
 ##import SocketServer
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 
@@ -22,9 +23,9 @@ class RPCServer(SimpleXMLRPCServer):
     self.server_close()
 
 
-class WorkerHandler(xmlrpclib.ServerProxy):
+class WorkerHandler():#xmlrpclib.ServerProxy):
   def __init__(self, uri, uid):
-    xmlrpclib.ServerProxy.__init__(self, uri)
+    #xmlrpclib.ServerProxy.__init__(self, uri)
     self.skipcount = 0
     self.uid = uid
     self.uri = uri
@@ -32,7 +33,7 @@ class WorkerHandler(xmlrpclib.ServerProxy):
   def skip(self):
     self.skipcount += 1
 
-  def reset(self):
+  def reset_skipcount(self):
     self.skipcount = 0
 
   def get_skipcount(self):
@@ -48,8 +49,8 @@ class Scheduler:
     self.dead = False
     self.max_skipcount = max_skipcount
 
-    self.server = RPCServer((hostname, port))
-    self.server.register_function(self.add_worker)
+    #self.server = RPCServer((hostname, port))
+    #self.server.register_function(self.add_worker)
 
   def add_worker(self, worker_uri, worker_uid):
     worker = WorkerHandler(worker_uri, worker_uid)
@@ -77,12 +78,13 @@ class Scheduler:
     ## right now: task-oriented. I.e., tasks are strictly scheduled in graph
     ## traversal order
     dependencies = rdd.get_locality_info(hash_num)
-    preferred_workers = itertools.chain.from_iterable(dependencies.values())
+    preferred_workers = list(itertools.chain.from_iterable(dependencies.values()))
     assigned_worker = None
     while True:
+      print "scheduler loops with %d idle workers" % len(self.idle_workers)
       if len(preferred_workers) == 0 and len(self.idle_workers) > 0:
         with self.lock:
-          assigned_worker = preferred_workers.pop()
+          assigned_worker = self.idle_workers.pop()
           break
       else:
         for worker in self.idle_workers:
@@ -95,8 +97,9 @@ class Scheduler:
           else:
             worker.skip()
       time.sleep(0.1)
-    rdd.set_assignment(hash_num, preferred_worker)
+    rdd.set_assignment(hash_num, assigned_worker)
     assigned_worker.reset_skipcount()
+    print "worker assigned",str(assigned_worker)
     threading.Thread(target = self.dispatch,
                      args = ((rdd, hash_num), assigned_worker, dependencies))
 
@@ -125,11 +128,11 @@ class Scheduler:
     with self.lock:
       self.idle_workers.add(worker)
 
-  def run(self):
-    self.server_thread = threading.Thread(target =
-                                          self.server.serve_while_alive)
-    self.server_thread.start()
-    print "scheduler running"
+  #def run(self):
+    #self.server_thread = threading.Thread(target = self.server.serve_while_alive)
+    #self.server_thread.start()
+    #print "scheduler running"
+    #pass
 
 
 #################
@@ -172,6 +175,7 @@ class Worker:
 
   def run_task(self, rdd_id, hash_num, computation, parent_ids, peers, dependencies):
     ## TODO
+    print "Worker %s running task %s-%s" % (self.uid,rdd_id,hash_num)
     pass
 
   def run(self):
@@ -180,3 +184,5 @@ class Worker:
     self.server_thread.start()
     print "Worker %s running" % self.uid
 
+  def read_data(self,rdd_id,hash_num,part_func,filename):
+    print "Worker %s reading %s" % (self.uid,filename)

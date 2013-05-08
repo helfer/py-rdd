@@ -3,6 +3,10 @@ import xmlrpclib
 import marshal
 import types
 import base64
+
+import scheduler
+import rdd
+
 # create N clients, different ports
 # create one master, give it ports of clients
 # have master take one job, split it into multiple partitions, send it to servers that are not busy. P (number of partitions), N (number of Servers): P>N
@@ -11,6 +15,24 @@ baseport = 8500
 N = 3
 servers = []
 rpcs = []
+
+
+
+lines = rdd.TextFileRDD("in.pickle")
+sched = scheduler.Scheduler("localhost",8112)
+sched.add_worker("w1",1)
+sched.add_worker("w1",2)
+sched.add_worker("w1",3)
+sched.add_worker("w1",4)
+sched.execute(lines)
+
+
+exit()
+
+
+
+
+
 
 def g(x):
     print x
