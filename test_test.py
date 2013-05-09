@@ -27,6 +27,8 @@ for i in range(N):
 
 lines = rdd.TextFileRDD("test_data_file")
 maps = rdd.MapValuesRDD(lambda x: int(x), lines)
+lines2 = rdd.TextFileRDD("test_data_file2")
+joined = maps.join(lines2)
 sched = scheduler.Scheduler("localhost",8112)
 for i in range(N):
   sched.add_worker("http://%s:%d" % ("localhost",baseport+i),i)
@@ -34,7 +36,7 @@ for i in range(N):
 #time.sleep(2)
 #for i in range(N):
 #  print "worker %d data" % i, workers[i].data
-sched.execute(maps)
+sched.execute(joined)
 time.sleep(2)
 for i in range(N):
   print "worker %d data" % i, workers[i].data

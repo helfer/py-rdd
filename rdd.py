@@ -111,6 +111,11 @@ class JoinRDD(RDD):
     def __init__(self,parent1,parent2):
         RDD.__init__(self, (parent1.hash_function,parent1.hash_grain),[(parent1,Dependency.Narrow),(parent2,Dependency.Narrow)])
     
+    def serialize_action(self):
+        return ''
+
+    @staticmethod
+    def unserialize_action(blob):
         def action(data1,data2):
             result = {}
             for key in set().union(data1,data2):
@@ -124,7 +129,7 @@ class JoinRDD(RDD):
 
             return result
 
-        self.action = action
+        return action
 
 def simple_hash(key):
     return hash(key)
