@@ -31,7 +31,7 @@ class Worker(threading.Thread):
     self.server.register_function(self.lookup)
     self.data = {} ## map: (rdd_id, hash_num) -> dict
     #self.proxy = xmlrpclib.ServerProxy(scheduler_uri)
-    self.uid = uuid.uuid1()
+    self.uid = str(uuid.uuid1())
     self.uri = 'http://%s:%d' % (hostname, port)
 
     self.port = port

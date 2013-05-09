@@ -25,7 +25,7 @@ class RDD:
     for parent, dependency in parents:
       parent.children.append(self)
     self.children = []
-    self.uid = uuid.uuid1()
+    self.uid = str(uuid.uuid1())
     self.fully_scheduled = False
     self.worker_assignments = collections.defaultdict(list) ## map: hash_num -> [workers]
     self.task_status = collections.defaultdict(lambda : TaskStatus.Unscheduled) ## map: hash_num -> bool
