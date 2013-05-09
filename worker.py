@@ -1,4 +1,5 @@
 import uuid
+import pickle
 import util
 import rdd
 import SocketServer
@@ -77,18 +78,19 @@ class Worker(threading.Thread):
     return self.data[(rdd_id, hash_num)][key]
 
   def run_task(self, pickled_args):
-    rdd_id, hash_data,hash_num, computation, action_args, dependencies = util.pls(pickled_args)
+    rdd_id, hash_num, rdd_type, action, dependencies = util.pls(pickled_args)
     print "Worker %s running task %s * %s" % (self.uid,rdd_id,hash_num)
-    compute_function = util.decode_function(computation)
+    action = pickle.loads(rdd_type).unserialize_action(action)
     ## TODO: Wide dependencies not supported yet
     working_data = {}
     for key in dependencies:
       if not self.data.has_key(key):
+        print "Querying remote server"
         proxy = xmlrpclib.ServerProxy(dependencies[key])
         working_data.update(proxy.query_by_hash_num(key[0], key[1]))
       else:
         working_data.update(self.data[key])
-    output = compute_function(working_data, hash_data, hash_num, *action_args)
+    output = action(working_data, hash_num)
     self.data[(rdd_id, hash_num)] = output
 
     return "OK"

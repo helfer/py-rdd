@@ -1,4 +1,5 @@
 import uuid
+import util
 import copy
 import threading
 import collections
@@ -29,9 +30,7 @@ class RDD:
     self.worker_assignments = collections.defaultdict(list) ## map: hash_num -> [workers]
     self.task_status = collections.defaultdict(lambda : TaskStatus.Unscheduled) ## map: hash_num -> bool
     self.lock = threading.Lock()
-    ## implemented by derived classes
-    self.action = None
-    self.action_args = ()
+    self.fully_scheduled = False
 
   def set_assignment(self, hash_num, worker):
     self.worker_assignments[hash_num].append(worker)
@@ -42,7 +41,7 @@ class RDD:
     completed partitions in parents with narrow dependency."""
     locations = {}
     for parent, dependency in self.parents:
-      if dependency == Narrow:
+      if dependency == Dependency.Narrow:
         status = parent.task_status[hash_num]
         if status == TaskStatus.Assigned or status == TaskStatus.Complete:
           locations[(parent.uid, hash_num)] = parent.worker_assignments[hash_num]
@@ -66,36 +65,41 @@ class TextFileRDD(RDD):
   def __init__(self, filename, hash_data = (hash,3)):
     RDD.__init__(self, hash_data)
     self.filename = filename
-    def action(data, hash_data, hash_num, filename):
+
+  def serialize_action(self):
+    return self.filename
+
+  @staticmethod
+  def unserialize_action(blob):
+    filename = blob
+    def action(data, hash_num):
       output = {}
       f = open(filename)
       for line in f.readlines():
         key, value = line.split()
-        hash_func,hash_grain = hash_data
-        if hash_func(key) % hash_grain == hash_num:
-            output[key] = value
-      return output
+        output[key] = value
       f.close()
-    self.action = action
-    self.action_args = (filename, )
-
-  def get_action(self):
-    return self.action
+      return output
+    return action
 
 class MapValuesRDD(RDD):
   def __init__(self, function, parent):
     RDD.__init__(self, (parent.hash_function, parent.hash_grain), parents =
         [(parent, Dependency.Narrow)])
     self.function = function
-    def action(data):
+
+  def serialize_action(self):
+    return util.encode_function(self.function)
+
+  @staticmethod
+  def unserialize_action(blob):
+    function = util.decode_function(blob)
+    def action(data, hash_num):
       output = {}
-      for key, value in data:
+      for key, value in data.items():
         output[key] = function(value)
       return output
-    self.action = action
-
-  def get_action(self):
-    return self.action
+    return action
 
 class NullRDD(RDD):
   def __init__(self):
