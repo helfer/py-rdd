@@ -26,7 +26,7 @@ for i in range(N):
   workers[i].start()
 
 lines = rdd.TextFileRDD("test_data_file")
-maps = rdd.MapValuesRDD(lambda x: int(x), lines)
+maps = rdd.MapValuesRDD(lambda x: map(int, x), lines)
 lines2 = rdd.TextFileRDD("test_data_file2")
 joined = maps.join(lines2)
 sched = scheduler.Scheduler("localhost",8112)

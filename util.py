@@ -1,4 +1,5 @@
 import types
+import collections
 import marshal
 import pickle
 import base64
@@ -21,3 +22,11 @@ def encode_function(function):
 def decode_function(encoded_function):
   func_code = marshal.loads(encoded_function)
   return types.FunctionType(func_code, globals())
+
+def flatten(l):
+  for el in l:
+    if isinstance(el, collections.Iterable) and not isinstance(el, basestring):
+      for sub in flatten(el):
+        yield sub
+      else:
+        yield el

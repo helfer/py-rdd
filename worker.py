@@ -1,4 +1,5 @@
 import uuid
+import collections
 import pickle
 import util
 import rdd
@@ -82,14 +83,18 @@ class Worker(threading.Thread):
     print "Worker %s running task %s * %s" % (self.uid,rdd_id,hash_num)
     action = pickle.loads(rdd_type).unserialize_action(action)
     ## TODO: Wide dependencies not supported yet
-    working_data = {}
-    for key in dependencies:
-      if not self.data.has_key(key):
+    working_data = collections.defaultdict(list)
+    for dep_key in dependencies:
+      if not self.data.has_key(dep_key):
         print "Querying remote server"
-        proxy = xmlrpclib.ServerProxy(dependencies[key])
-        working_data.update(proxy.query_by_hash_num(key[0], key[1]))
+        proxy = xmlrpclib.ServerProxy(dependencies[dep_key])
+        for k, v in proxy.query_by_hash_num(dep_key[0], dep_key[1]).items():
+          working_data[k].append(v)
       else:
-        working_data.update(self.data[key])
+        for k, v in self.data[dep_key].items():
+          working_data[k].append(v)
+    for k, v in working_data.items():
+      working_data[k] = list(util.flatten(v))
     output = action(working_data, hash_num)
     self.data[(rdd_id, hash_num)] = output
 
