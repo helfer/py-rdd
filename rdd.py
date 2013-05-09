@@ -108,17 +108,17 @@ class NullRDD(RDD):
 ## etc.
 
 class JoinRDD(RDD):
-    def __init__(self,parent1,parent2):
-        RDD.__init__(self, (parent1.hash_function,parent1.hash_grain),[(parent1,Dependency.Narrow),(parent2,Dependency.Narrow)])
+  def __init__(self,parent1,parent2):
+    RDD.__init__(self, (parent1.hash_function,parent1.hash_grain),[(parent1,Dependency.Narrow),(parent2,Dependency.Narrow)])
 
-    def serialize_action(self):
-        return ''
+  def serialize_action(self):
+    return ''
 
-    @staticmethod
-    def unserialize_action(blob):
-        def action(data,hash_num):
-            return data
-        return action
+  @staticmethod
+  def unserialize_action(blob):
+    def action(data,hash_num):
+      return data
+    return action
 
 def simple_hash(key):
     return hash(key)

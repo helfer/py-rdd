@@ -23,6 +23,7 @@ def decode_function(encoded_function):
   func_code = marshal.loads(encoded_function)
   return types.FunctionType(func_code, globals())
 
+## TODO: broken
 def flatten(l):
   for el in l:
     if isinstance(el, collections.Iterable) and not isinstance(el, basestring):
