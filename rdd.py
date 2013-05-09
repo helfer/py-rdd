@@ -19,8 +19,8 @@ class RDD:
         parents = []
     self.hash_function, self.hash_grain = hash_data
     self.parents = parents
-    for parent in parents:
-      self.children.append(child)
+    for parent, dependency in parents:
+      parent.children.append(self)
     self.children = []
     self.uid = uuid.uuid1()
     self.scheduled = False
@@ -43,7 +43,7 @@ class RDD:
           locations[(parent.uid, hash_num)] = parent.worker_assignments[hash_num]
     return locations
 
-  def compute(self, data):
+  def get_action(self):
     ## implemented by derived classes
     pass
 
@@ -60,32 +60,43 @@ class RDD:
 class Dependency:
   Narrow, Wide = 0, 1
 
-
 ## For each supported transformation, we have a class derived from RDD
 class TextFileRDD(RDD):
-  
-    def __init__(self,filename,hash_data = (hash,3)):
-        RDD.__init__(self,hash_data)
-        self.filename = filename
+  def __init__(self, filename, transform, hash_data = (hash,3)):
+    RDD.__init__(self, hash_data)
+    self.filename = filename
+    self.transform = transform
+    def action(data):
+      output = {}
+      f = open(filename)
+      for line in f.readlines():
+        key, value = transform(line)
+        output[key] = value
+      return output
+      f.close()
+    self.action = action
+
+  def get_action(self):
+    return self.action
 
 class MapValuesRDD(RDD):
   def __init__(self, function, parent):
     RDD.__init__(self, (parent.hash_function, parent.hash_grain), parents =
         [(parent, Dependency.Narrow)])
     self.function = function
+    def action(data):
+      output = {}
+      for key, value in data:
+        output[key] = self.function(value)
+      return output
+    self.action = action
 
-  def compute(self, data):
-    output = {}
-    for key, value in data:
-      output[key] = self.function(data)
-    return output
+  def get_action(self):
+    return self.action
 
-class JoinRDD(RDD):
-  def __init__(self, parent1, parent2):
-    RDD.__init__(self, (parent1.hash_function, parent1.hash_grain), parents =
-        [(parent1, Dependency.Narrow), (parent2, Dependency.Narrow)])
-
-  ## TODO
+class NullRDD(RDD):
+  def __init__(self):
+    RDD.__init__(self, (hash, 22))
 
 ## etc.
 

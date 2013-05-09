@@ -1,4 +1,5 @@
 import uuid
+import util
 import rdd
 import SocketServer
 import threading
@@ -39,13 +40,6 @@ class Worker(threading.Thread):
 
     self.server.register_function(self.read_data)
     self.server.register_function(self.stop_server)
-    #self.server.register_function(self.put_data)
-    #self.server.register_function()
-    self.server.register_function(self.hello_world)
- 
-
-  #def register_with_scheduler(self):
-  #  self.proxy.add_worker(self.uid, self.uri)
 
   def __hash__(self):
     return hash(self.uri)
@@ -62,7 +56,7 @@ class Worker(threading.Thread):
   def stop_server(self):
     self.stop_flag = True
     return "OK"
-  
+
   def query_by_hash_num(self, rdd_id, hash_num):
     if self.data.has_key((rdd_id, hash_num)):
       return self.data[(rdd_id, hash_num)]
@@ -77,20 +71,28 @@ class Worker(threading.Thread):
     for key, data in self.data:
       if rdd_id == key[0]:
         output.update([(k, v) for k, v in data.items() if func(k)])
-    return update
+    return output
 
   def lookup(self, rdd_id, hash_num, key):
     return self.data[(rdd_id, hash_num)][key]
 
-  def run_task(self, p):
-    rdd_id, hash_num, computation, parent_ids, peers, dependencies = scheduler.pls(p)
+  def run_task(self, pickled_args):
+    rdd_id, hash_num, computation, dependencies = util.pls(pickled_args)
     print "Worker %s running task %s * %s" % (self.uid,rdd_id,hash_num)
+    compute_function = util.decode_function(computation)
+    ## TODO: Wide dependencies not supported yet
+    working_data = {}
+    for key in dependencies:
+      if not self.data.has_key(key):
+        proxy = xmlrpclib.ServerProxy(dependencies[key])
+        working_data.update(proxy.query_by_hash_num(key[0], key[1]))
+      else:
+        working_data.update(self.data[key])
+    output = compute_function(working_data)
+    self.data[(rdd_id, hash_num)] = output
+
     return "OK"
 
   def read_data(self,rdd_id,hash_num,part_func,filename):
     print "Worker %s reading %s" % (self.uid,filename)
-    return "OK"
-
-  def hello_world(self):
-    print "Hello world from %s" % self.uri
     return "OK"

@@ -14,30 +14,33 @@ import time
 
 baseport = 8500
 N = 3
-servers = []
-rpcs = []
-
-
 workers = []
+
+def getkv(string):
+  k, v = string.split()
+  v = int(v)
+  return k, v
+
 try:
-    for i in range(N):
-        workers.append(worker.Worker("localhost",baseport+i))
-        workers[i].start()
+  for i in range(N):
+    workers.append(worker.Worker("localhost",baseport+i))
+    workers[i].start()
 
 
-    lines = rdd.TextFileRDD("in.pickle")
-    sched = scheduler.Scheduler("localhost",8112)
-    for i in range(N):
-        sched.add_worker("http://%s:%d" % ("localhost",baseport+i),i)
-    sched.execute(lines)
+  lines = rdd.TextFileRDD("test_data_file", action = getkv)
+  sched = scheduler.Scheduler("localhost",8112)
+  for i in range(N):
+    sched.add_worker("http://%s:%d" % ("localhost",baseport+i),i)
+  sched.execute(lines)
 except Exception as e:
-    print e
-    traceback.print_exc()    
+  print e
+  traceback.print_exc()
 finally:
-    time.sleep(1)
-    for i in range(len(workers)):
-         print "stopping worker %d" % i
-         workers[i].stop_server()
+  time.sleep(1)
+  for i in range(len(workers)):
+    print "worker %d data" % i, workers[i].data
+    print "stopping worker %d" % i
+    workers[i].stop_server()
 
 exit()
 
@@ -52,8 +55,8 @@ def g(x):
     for l in x:
         for e in l:
             res.append(e)
-   
-    print res 
+
+    print res
     return res
 
 def add(x):
@@ -61,7 +64,7 @@ def add(x):
     for l in x:
         for e in l:
             res = res + e
-    
+
     return res
 
 def bump(x):
@@ -101,7 +104,7 @@ for i in range(N):
 
     print rpcs[0].get_data('3')
     print "bump " + rtransform(rpcs[0],['3'],'3',bump)
-    
+
     print "add " + rtransform(rpcs[0],['0','1','2','3'],'4',add,{'0':("localhost",baseport),'1':("localhost",baseport+1),'2':("localhost",baseport+2)})
 
 print rpcs[0].get_data('3')

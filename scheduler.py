@@ -1,4 +1,5 @@
-import rdd
+import rdd as rdd_module
+import util
 import itertools
 import Queue
 import threading
@@ -8,30 +9,6 @@ import time
 import marshal
 import pickle
 import base64
-from SimpleXMLRPCServer import SimpleXMLRPCServer
-
-def pds(*args,**kwargs):
-  if len(kwargs) != 0:
-    raise Exception("kwargs pickle not implemented yet")
-  x =  base64.b64encode(pickle.dumps(args))
-  return x
-def pls(p):
-  return pickle.loads(base64.b64decode(p))
-
-
-
-class RPCServer(SimpleXMLRPCServer):
-  ## TODO: do we need the threading mixin here?
-  def __init__(self, addr):
-    SimpleXMLRPCServer.__init__(self, addr)
-    self.dead = False
-  def serve_while_alive(self):
-    while not self.dead:
-      self.handle_request()
-
-  def kill(self):
-    self.dead = True
-    self.server_close()
 
 
 class WorkerHandler(xmlrpclib.ServerProxy):
@@ -63,9 +40,6 @@ class Scheduler:
     self.dead = False
     self.max_skipcount = max_skipcount
 
-    #self.server = RPCServer((hostname, port))
-    #self.server.register_function(self.add_worker)
-
   def add_worker(self, worker_uri, worker_uid):
     worker = WorkerHandler(worker_uri, worker_uid)
     self.workers.add(worker)
@@ -85,7 +59,6 @@ class Scheduler:
     for hash_num in range(rdd.hash_grain):
       self.schedule(rdd, hash_num)
     rdd.fully_scheduled = True
-
 
   def schedule(self, rdd, hash_num):
     ## TODO: decide if we want task-oriented or worker-oriented scheduling
@@ -124,27 +97,20 @@ class Scheduler:
     task -- pair (rdd, hash num)
     worker -- WorkerHandler instance
     dependencies -- dictionary (rdd uid, hash num) --> [workers]"""
-    ## TODO: worker also needs to know about hash function
     rdd, hash_num = task
     ## serialize compute function
-    computation = marshal.dumps(rdd.compute.func_code)
-    with self.lock:
-      peers = dict([(worker.uid, worker.uri) for worker in self.workers])
-    ## replace WorkerHandler references with uids
-    dependencies = dict([(key, worker.uid) for key, worker in
+    computation = util.encode_function(rdd.get_action())
+    ## replace WorkerHandler references with appropriate uris
+    dependencies = dict([(key, worker.uri) for key, worker in
       dependencies.items()])
-    parent_ids = [parent.uid for parent, dependency in rdd.parents]
     ## Send task to worker and wait for completion
     print "scheduler calling worker %s" % assigned_worker.uri
-    assigned_worker.hello_world()
-    arg = pds(rdd.uid, hash_num, computation, parent_ids, peers, dependencies)
-    #assigned_worker.hello_world()
+    pickled_args = util.pds(rdd.uid, hash_num, computation, dependencies)
+    assigned_worker.run_task(pickled_args)
     ## mark task as complete
-    
-    #with rdd.lock:
-    #  rdd.task_status[hash_num] = rdd.TaskStatus.Complete
+    with rdd.lock:
+      rdd.task_status[hash_num] = rdd_module.TaskStatus.Complete
     print "scheduler calling worker %s" % assigned_worker.uri
-    assigned_worker.run_task(arg)
 
   #def run(self):
     #self.server_thread = threading.Thread(target = self.server.serve_while_alive)
