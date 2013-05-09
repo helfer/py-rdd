@@ -105,7 +105,7 @@ class Scheduler:
       dependencies.items()])
     ## Send task to worker and wait for completion
     print "scheduler calling worker %s" % assigned_worker.uri
-    pickled_args = util.pds(rdd.uid, hash_num, computation, rdd.action_args, dependencies)
+    pickled_args = util.pds(rdd.uid, rdd.hash_data,hash_num, computation, rdd.action_args, dependencies)
     assigned_worker.run_task(pickled_args)
     ## mark task as complete
     with rdd.lock:

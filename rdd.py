@@ -18,6 +18,7 @@ class RDD:
     ## parents should be a list of pairs (RDD, dependency_type)
     if parents is None:
         parents = []
+    self.hash_data = hash_data
     self.hash_function, self.hash_grain = hash_data
     self.parents = parents
     for parent, dependency in parents:
@@ -65,12 +66,14 @@ class TextFileRDD(RDD):
   def __init__(self, filename, hash_data = (hash,3)):
     RDD.__init__(self, hash_data)
     self.filename = filename
-    def action(data, filename):
+    def action(data, hash_data, hash_num, filename):
       output = {}
       f = open(filename)
       for line in f.readlines():
         key, value = line.split()
-        output[key] = value
+        hash_func,hash_grain = hash_data
+        if hash_func(key) % hash_grain == hash_num:
+            output[key] = value
       return output
       f.close()
     self.action = action
