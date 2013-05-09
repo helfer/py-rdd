@@ -69,7 +69,7 @@ class TextFileRDD(RDD):
       output = {}
       f = open(filename)
       for line in f.readlines():
-        key, value = transform(line)
+        key, value = line.split()
         output[key] = value
       return output
       f.close()
