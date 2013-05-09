@@ -13,7 +13,7 @@ import time
 # have master take one job, split it into multiple partitions, send it to servers that are not busy. P (number of partitions), N (number of Servers): P>N
 
 baseport = 8500
-N = 3
+N = 10
 workers = []
 
 def getkv(string):
@@ -28,15 +28,17 @@ try:
 
 
   lines = rdd.TextFileRDD("test_data_file")
+  lines2 = rdd.TextFileRDD("test_data_file2")
+  joined = lines.join(lines2)
   sched = scheduler.Scheduler("localhost",8112)
   for i in range(N):
     sched.add_worker("http://%s:%d" % ("localhost",baseport+i),i)
-  sched.execute(lines)
+  sched.execute(joined)
 except Exception as e:
   print e
   traceback.print_exc()
 finally:
-  time.sleep(1)
+  time.sleep(2)
   for i in range(len(workers)):
     print "worker %d data" % i, workers[i].data
     print "stopping worker %d" % i

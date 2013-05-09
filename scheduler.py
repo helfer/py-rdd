@@ -13,7 +13,7 @@ import base64
 
 class WorkerHandler(xmlrpclib.ServerProxy):
   def __init__(self, uri, uid):
-    xmlrpclib.ServerProxy.__init__(self, uri)
+    xmlrpclib.ServerProxy.__init__(self, uri,allow_none=True)
     self.skipcount = 0
     self.uid = uid
     self.uri = uri
@@ -75,13 +75,17 @@ class Scheduler:
           break
       else:
         for worker in self.idle_workers:
+          print "peferred workers",preferred_workers
+          print "worker", worker
           if (worker in preferred_workers or
              worker.skipcount == self.max_skipcount):
+            print "gotit"
             with self.lock:
               self.idle_workers.remove(worker)
             assigned_worker = worker
             break
           else:
+            print "missedit"
             worker.skip()
       time.sleep(0.1)
     rdd.set_assignment(hash_num, assigned_worker)

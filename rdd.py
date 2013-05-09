@@ -25,7 +25,7 @@ class RDD:
       parent.children.append(self)
     self.children = []
     self.uid = uuid.uuid1()
-    self.scheduled = False
+    self.fully_scheduled = False
     self.worker_assignments = collections.defaultdict(list) ## map: hash_num -> [workers]
     self.task_status = collections.defaultdict(lambda : TaskStatus.Unscheduled) ## map: hash_num -> bool
     self.lock = threading.Lock()
@@ -42,7 +42,7 @@ class RDD:
     completed partitions in parents with narrow dependency."""
     locations = {}
     for parent, dependency in self.parents:
-      if dependency == Narrow:
+      if dependency == Dependency.Narrow:
         status = parent.task_status[hash_num]
         if status == TaskStatus.Assigned or status == TaskStatus.Complete:
           locations[(parent.uid, hash_num)] = parent.worker_assignments[hash_num]
@@ -104,6 +104,24 @@ class NullRDD(RDD):
 
 ## etc.
 
+class JoinRDD(RDD):
+    def __init__(self,parent1,parent2):
+        RDD.__init__(self, (parent1.hash_function,parent1.hash_grain),[(parent1,Dependency.Narrow),(parent2,Dependency.Narrow)])
+    
+        def action(data1,data2):
+            result = {}
+            for key in set().union(data1,data2):
+                 d1,d2 = None,None
+                 if key in data1:
+                    d1 = data1[key]
+                 if key in data2:
+                    d2 = data2[key]
+
+                 result[key] = (d1,d2)
+
+            return result
+
+        self.action = action
 
 def simple_hash(key):
     return hash(key)
