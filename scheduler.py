@@ -13,10 +13,13 @@ import base64
 
 class WorkerHandler(xmlrpclib.ServerProxy):
   def __init__(self, uri, uid):
-    xmlrpclib.ServerProxy.__init__(self, uri,allow_none=True)
+    xmlrpclib.ServerProxy.__init__(self, uri, allow_none = True)
     self.skipcount = 0
     self.uid = uid
     self.uri = uri
+
+  def __eq__(self, other):
+    return False if other == None else self.uid == other.uid
 
   def skip(self):
     self.skipcount += 1
@@ -67,8 +70,9 @@ class Scheduler:
     dependencies = rdd.get_locality_info(hash_num)
     preferred_workers = list(itertools.chain.from_iterable(dependencies.values()))
     assigned_worker = None
-    while True:
-      print "scheduler loops with %d idle workers" % len(self.idle_workers)
+    while assigned_worker == None:
+      print "scheduler loops on task", rdd.__class__, hash_num
+      print "%d idle workers" % len(self.idle_workers)
       if len(preferred_workers) == 0 and len(self.idle_workers) > 0:
         with self.lock:
           assigned_worker = self.idle_workers.pop()
@@ -88,9 +92,10 @@ class Scheduler:
             print "missedit"
             worker.skip()
       time.sleep(0.1)
+    print "Found worker"
     rdd.set_assignment(hash_num, assigned_worker)
     assigned_worker.reset_skipcount()
-    print "worker assigned",str(assigned_worker)
+    print "worker %s assigned to task" % str(assigned_worker), rdd.__class__
     dispatch_thread = threading.Thread(target = self.dispatch,
                      args = ((rdd, hash_num), assigned_worker, dependencies))
     dispatch_thread.start()
@@ -103,18 +108,21 @@ class Scheduler:
     dependencies -- dictionary (rdd uid, hash num) --> [workers]"""
     rdd, hash_num = task
     ## serialize compute function
-    computation = util.encode_function(rdd.get_action())
     ## replace WorkerHandler references with appropriate uris
-    dependencies = dict([(key, worker.uri) for key, worker in
-      dependencies.items()])
+    dependencies = dict([(key, map(lambda worker: worker.uri, workers)) for key,
+      workers in dependencies.items()])
     ## Send task to worker and wait for completion
     print "scheduler calling worker %s" % assigned_worker.uri
-    pickled_args = util.pds(rdd.uid, rdd.hash_data,hash_num, computation, rdd.action_args, dependencies)
+    rdd_type = pickle.dumps(rdd.__class__)
+    pickled_args = util.pds(rdd.uid, hash_num, rdd_type,
+        rdd.serialize_action(), dependencies)
     assigned_worker.run_task(pickled_args)
     ## mark task as complete
     with rdd.lock:
       rdd.task_status[hash_num] = rdd_module.TaskStatus.Complete
-    print "scheduler calling worker %s" % assigned_worker.uri
+    ## free worker
+    with self.lock:
+      self.idle_workers.add(assigned_worker)
 
   #def run(self):
     #self.server_thread = threading.Thread(target = self.server.serve_while_alive)

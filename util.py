@@ -16,8 +16,8 @@ def pls(p):
 
 def encode_function(function):
   print function
-  return marshal.dumps((function.func_code, function.func_closure))
+  return marshal.dumps(function.func_code)
 
 def decode_function(encoded_function):
-  func_code, func_closure = marshal.loads(encoded_function)
-  return types.FunctionType(func_code, globals(), closure = func_closure)
+  func_code = marshal.loads(encoded_function)
+  return types.FunctionType(func_code, globals())

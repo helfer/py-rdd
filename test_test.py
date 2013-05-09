@@ -21,28 +21,29 @@ def getkv(string):
   v = int(v)
   return k, v
 
-try:
-  for i in range(N):
-    workers.append(worker.Worker("localhost",baseport+i))
-    workers[i].start()
+for i in range(N):
+  workers.append(worker.Worker("localhost",baseport+i))
+  workers[i].start()
+
+lines = rdd.TextFileRDD("test_data_file")
+maps = rdd.MapValuesRDD(lambda x: int(x), lines)
+sched = scheduler.Scheduler("localhost",8112)
+for i in range(N):
+  sched.add_worker("http://%s:%d" % ("localhost",baseport+i),i)
+##sched.execute(lines)
+#time.sleep(2)
+#for i in range(N):
+#  print "worker %d data" % i, workers[i].data
+sched.execute(maps)
+time.sleep(2)
+for i in range(N):
+  print "worker %d data" % i, workers[i].data
 
 
-  lines = rdd.TextFileRDD("test_data_file")
-  lines2 = rdd.TextFileRDD("test_data_file2")
-  joined = lines.join(lines2)
-  sched = scheduler.Scheduler("localhost",8112)
-  for i in range(N):
-    sched.add_worker("http://%s:%d" % ("localhost",baseport+i),i)
-  sched.execute(joined)
-except Exception as e:
-  print e
-  traceback.print_exc()
-finally:
-  time.sleep(2)
-  for i in range(len(workers)):
-    print "worker %d data" % i, workers[i].data
-    print "stopping worker %d" % i
-    workers[i].stop_server()
+time.sleep(1)
+for i in range(len(workers)):
+  print "stopping worker %d" % i
+  workers[i].stop_server()
 
 exit()
 
