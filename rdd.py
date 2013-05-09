@@ -30,7 +30,7 @@ class RDD:
     self.lock = threading.Lock()
     ## implemented by derived classes
     self.action = None
-    self.args = None
+    self.action_args = ()
 
   def set_assignment(self, hash_num, worker):
     self.worker_assignments[hash_num].append(worker)
@@ -84,7 +84,6 @@ class MapValuesRDD(RDD):
     RDD.__init__(self, (parent.hash_function, parent.hash_grain), parents =
         [(parent, Dependency.Narrow)])
     self.function = function
-    function = copy.deepcopy(function)
     def action(data):
       output = {}
       for key, value in data:
