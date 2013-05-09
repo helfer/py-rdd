@@ -77,7 +77,7 @@ class Worker(threading.Thread):
     return self.data[(rdd_id, hash_num)][key]
 
   def run_task(self, pickled_args):
-    rdd_id, hash_num, computation, dependencies = util.pls(pickled_args)
+    rdd_id, hash_num, computation, action_args, dependencies = util.pls(pickled_args)
     print "Worker %s running task %s * %s" % (self.uid,rdd_id,hash_num)
     compute_function = util.decode_function(computation)
     ## TODO: Wide dependencies not supported yet
@@ -88,7 +88,7 @@ class Worker(threading.Thread):
         working_data.update(proxy.query_by_hash_num(key[0], key[1]))
       else:
         working_data.update(self.data[key])
-    output = compute_function(working_data)
+    output = compute_function(working_data, *action_args)
     self.data[(rdd_id, hash_num)] = output
 
     return "OK"

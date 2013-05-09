@@ -27,7 +27,7 @@ try:
     workers[i].start()
 
 
-  lines = rdd.TextFileRDD("test_data_file", action = getkv)
+  lines = rdd.TextFileRDD("test_data_file")
   sched = scheduler.Scheduler("localhost",8112)
   for i in range(N):
     sched.add_worker("http://%s:%d" % ("localhost",baseport+i),i)

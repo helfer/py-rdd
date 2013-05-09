@@ -1,4 +1,5 @@
 import uuid
+import copy
 import threading
 import collections
 import pickle
@@ -27,6 +28,9 @@ class RDD:
     self.worker_assignments = collections.defaultdict(list) ## map: hash_num -> [workers]
     self.task_status = collections.defaultdict(lambda : TaskStatus.Unscheduled) ## map: hash_num -> bool
     self.lock = threading.Lock()
+    ## implemented by derived classes
+    self.action = None
+    self.args = None
 
   def set_assignment(self, hash_num, worker):
     self.worker_assignments[hash_num].append(worker)
@@ -43,10 +47,6 @@ class RDD:
           locations[(parent.uid, hash_num)] = parent.worker_assignments[hash_num]
     return locations
 
-  def get_action(self):
-    ## implemented by derived classes
-    pass
-
   def map(self, function):
     return MapValuesRDD(function, self)
 
@@ -62,11 +62,10 @@ class Dependency:
 
 ## For each supported transformation, we have a class derived from RDD
 class TextFileRDD(RDD):
-  def __init__(self, filename, transform, hash_data = (hash,3)):
+  def __init__(self, filename, hash_data = (hash,3)):
     RDD.__init__(self, hash_data)
     self.filename = filename
-    self.transform = transform
-    def action(data):
+    def action(data, filename):
       output = {}
       f = open(filename)
       for line in f.readlines():
@@ -75,6 +74,7 @@ class TextFileRDD(RDD):
       return output
       f.close()
     self.action = action
+    self.action_args = (filename, )
 
   def get_action(self):
     return self.action
@@ -84,10 +84,11 @@ class MapValuesRDD(RDD):
     RDD.__init__(self, (parent.hash_function, parent.hash_grain), parents =
         [(parent, Dependency.Narrow)])
     self.function = function
+    function = copy.deepcopy(function)
     def action(data):
       output = {}
       for key, value in data:
-        output[key] = self.function(value)
+        output[key] = function(value)
       return output
     self.action = action
 
