@@ -53,6 +53,9 @@ class RDD:
   def join(self, coparent):
     return JoinRDD(self, coparent)
 
+  def reduce_by_key(self,function,initializer=None):
+    return ReduceByKeyRDD(function, self,initializer)
+
   def lookup(self, key):
     hash_num = self.hash_function(key)
     return self.worker_assignments[hash_num][0].lookup(self.uid, hash_num, key)
@@ -119,6 +122,30 @@ class JoinRDD(RDD):
     def action(data,hash_num):
       return data
     return action
+
+
+class ReduceByKeyRDD(RDD):
+  def __init__(self,function,parent,initializer=None):
+    #todo: should usually be Dependency.Wide
+    RDD.__init__(self,parent.hash_data,[(parent,Dependency.Narrow)])
+    self.function = function
+    self.initializer = initializer
+
+  def serialize_action(self):
+    return (util.encode_function(self.function),self.initializer)
+
+  @staticmethod
+  def unserialize_action(blob):
+    function = util.decode_function(blob[0])
+    initializer = blob[1]
+    def action(data, hash_num):
+      output = {}
+      for key, values in data.items():
+        output[key] = reduce(function,values,initializer)
+      return output
+    return action
+    
+
 
 def simple_hash(key):
     return hash(key)
