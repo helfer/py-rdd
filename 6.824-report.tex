@@ -1,0 +1,57 @@
+\documentclass[10pt]{article}
+
+\input{preamble}
+\input{macros}
+
+\begin{document}
+
+\title{Resilient Distributed Datasets in Python \\ \small{6.824 Final Project - Spring 2013}}
+\author{Eben Freeman \& Jonas Helfer\\
+\small{\{helfer,emfree\}@mit.edu}
+}
+\maketitle
+
+\begin{abstract}
+problem?
+map reduce is good, but not for everything
+approach?
+abstraction of resilient datasets. implement basic system
+results?
+we implemented something in python that runs neatly and can deal with fail-stop, dropped packets and arbitrary delays
+conclusion/implications?
+Our solution is not complete, but we've built a framework from scratch that can be easily extended.
+
+\end{abstract}
+\section*{Introduction}
+Map Reduce is nice, but it's not great for on-line computations. How cool would it be to keep stuff in memory? Really cool! resilient distributed datasets (RDDs) \cite{rdd} in Python using a delay scheduler \cite{delay}.
+
+
+\section*{Concept}
+transformations applied to a dataset. keeping everything in memory. datasets partitioned for parallel execution.
+recover from failures by re-applying to transformations assuming that initial data will stay around
+
+\section*{Implementation}
+We implemented it in python. We first considered using Go to build on the existing systems from labs 1 through 4, but we decided to use python, because Python makes serializing functions, a crucial aspect of RDDs, a lot easier.
+
+Our system consists of one master and a variable number of workers that can be added and removed from the pool of workers. Workers can be added and removed at any time.
+
+Workers are RPC servers that spawn a new thread for every request and can thus execute several requests concurrently. While the master will try to only send one request at a time to any worker, the workers need to be able to send requests for data to each other which need to be processed concurrently.
+
+The scheduler runs on the master, which has only one thread. The scheduler can be invoked from a program running on the master or interactively by the user. If the user passes an RDD to the scheduler, the scheduler will try to add it to the dispatcher queue. If the RDD has no parents or if its parents have already been computed, the partitions of the RDD are added to the dispatcher queue. The jobs in the queue are assigned to workers according to the delay scheduling scheme \cite{delay}, which balances data locality and worker load. It is highly preferable to schedule a task on the worker that has the input data in memory because fetching it from another worker will take time and network bandwidth.
+
+\section*{Results}
+We tested our system using multiple threads communicating over RPC on single dual-core machines. While that allowed us to simulate race-conditions or deadlocks that might occur and thus debug our code, it did not allow us to do a meaningful performance evaluation. However, since our system is intended as a proof-of-concept and in no way optimized for performance, we considered this drawback acceptable.
+
+\section*{Conclusion}
+Our system is mainly a proof of concept. 
+
+\subsection*{Project experience}
+Challenging parts? Debugging through rpc.
+
+
+
+
+\bibliographystyle{plain}
+\bibliography{6.824-report}
+
+\end{document} 

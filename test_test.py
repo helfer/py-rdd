@@ -13,7 +13,7 @@ import time
 # have master take one job, split it into multiple partitions, send it to servers that are not busy. P (number of partitions), N (number of Servers): P>N
 
 baseport = 8500
-N = 10
+N = 2
 workers = []
 
 def getkv(string):
