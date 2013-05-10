@@ -5,6 +5,9 @@ import threading
 import collections
 import pickle
 
+def simple_hash(key):
+    return hash(key)
+
 ## for now, each shard of an RDD should just be stored as a dictionary on the worker.
 
 class TaskStatus:
@@ -22,7 +25,7 @@ class RDD:
     self.hash_data = hash_data
     self.hash_function, self.hash_grain = hash_data
     self.parents = parents
-    for parent, dependency in parents:
+    for parent in parents:
       parent.children.append(self)
     self.children = []
     self.uid = str(uuid.uuid1())
@@ -40,11 +43,10 @@ class RDD:
     """Given a hash number, return the data location of any scheduled or
     completed partitions in parents with narrow dependency."""
     locations = {}
-    for parent, dependency in self.parents:
-      if dependency == Dependency.Narrow:
-        status = parent.task_status[hash_num]
-        if status == TaskStatus.Assigned or status == TaskStatus.Complete:
-          locations[(parent.uid, hash_num)] = parent.worker_assignments[hash_num]
+    for parent in self.parents:
+      status = parent.task_status[hash_num]
+      if status == TaskStatus.Assigned or status == TaskStatus.Complete:
+        locations[(parent.uid, hash_num)] = parent.worker_assignments[hash_num]
     return locations
 
   def map(self, function):
@@ -65,7 +67,7 @@ class Dependency:
 
 ## For each supported transformation, we have a class derived from RDD
 class TextFileRDD(RDD):
-  def __init__(self, filename, hash_data = (hash,3)):
+  def __init__(self, filename, hash_data = (simple_hash,3)):
     RDD.__init__(self, hash_data)
     self.filename = filename
 
@@ -88,7 +90,7 @@ class TextFileRDD(RDD):
 class MapValuesRDD(RDD):
   def __init__(self, function, parent):
     RDD.__init__(self, (parent.hash_function, parent.hash_grain), parents =
-        [(parent, Dependency.Narrow)])
+        [parent])
     self.function = function
 
   def serialize_action(self):
@@ -106,13 +108,12 @@ class MapValuesRDD(RDD):
 
 class NullRDD(RDD):
   def __init__(self):
-    RDD.__init__(self, (hash, 22))
+    RDD.__init__(self, (simple_hash, 3))
 
-## etc.
 
 class JoinRDD(RDD):
   def __init__(self,parent1,parent2):
-    RDD.__init__(self, (parent1.hash_function,parent1.hash_grain),[(parent1,Dependency.Narrow),(parent2,Dependency.Narrow)])
+    RDD.__init__(self, (parent1.hash_function,parent1.hash_grain),[parent1, parent2])
 
   def serialize_action(self):
     return ''
@@ -126,8 +127,7 @@ class JoinRDD(RDD):
 
 class ReduceByKeyRDD(RDD):
   def __init__(self,function,parent,initializer=None):
-    #todo: should usually be Dependency.Wide
-    RDD.__init__(self,parent.hash_data,[(parent,Dependency.Narrow)])
+    RDD.__init__(self,parent.hash_data,[parent])
     self.function = function
     self.initializer = initializer
 
@@ -144,8 +144,28 @@ class ReduceByKeyRDD(RDD):
         output[key] = reduce(function,values,initializer)
       return output
     return action
-    
 
 
-def simple_hash(key):
-    return hash(key)
+class IntermediateFlatMapRDD(RDD):
+  def __init__(self, function, parent):
+    RDD.__init__(self, parent.hash_data, [parent])
+    self.function = function
+
+  def serialize_action(self):
+    return util.encode_function(self.function)
+
+  @staticmethod
+  def unserialize_action(blob):
+    function = util.decode_function(blob)
+    def action(data, hash_num):
+      output = {}
+      for key, value in data.items():
+        for out_key, out_value in function(value):
+          output[out_key] = out_value
+    return output
+
+
+class PartitionByRDD(RDD):
+  def __init__(self, parent):
+    RDD.__init__(self, parent.hash_data, [parent])
+

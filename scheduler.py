@@ -56,7 +56,7 @@ class Scheduler:
       pass
 
   def execute(self, rdd):
-    for parent, dependency in rdd.parents:
+    for parent in rdd.parents:
       if not parent.fully_scheduled:
         self.execute(parent)
     for hash_num in range(rdd.hash_grain):
@@ -107,15 +107,17 @@ class Scheduler:
     worker -- WorkerHandler instance
     dependencies -- dictionary (rdd uid, hash num) --> [workers]"""
     rdd, hash_num = task
-    ## serialize compute function
+    hash_func = util.encode_function(rdd.hash_function)
     ## replace WorkerHandler references with appropriate uris
     dependencies = dict([(key, map(lambda worker: worker.uri, workers)) for key,
       workers in dependencies.items()])
+    peers = [worker.uri for worker in self.workers]
+    rdd_type = pickle.dumps(rdd.__class__)
     ## Send task to worker and wait for completion
     print "scheduler calling worker %s" % assigned_worker.uri
-    rdd_type = pickle.dumps(rdd.__class__)
     pickled_args = util.pds(rdd.uid, hash_num, rdd_type,
-        rdd.serialize_action(), dependencies)
+        rdd.serialize_action(), dependencies,
+        hash_func, rdd.hash_grain, peers)
     assigned_worker.run_task(pickled_args)
     ## mark task as complete
     with rdd.lock:
