@@ -68,7 +68,7 @@ class Worker(threading.Thread):
 
   def query_by_filter(self, rdd_id, filter_func):
     ## return all key/value pairs in the specified rdd for which filter_func(key) is true.
-    func = types.FunctionType(marshal.loads(filter_func), {})
+    func = util.decode_function(filter_func)
     output = {}
     for key, data in self.data:
       if rdd_id == key[0]:
@@ -79,13 +79,10 @@ class Worker(threading.Thread):
     return self.data[(rdd_id, hash_num)][key]
 
   def run_task(self, pickled_args):
-    rdd_id, hash_num, rdd_type, action, dependencies = util.pls(pickled_args)
-##    print rdd_id
-##    print hash_num
-##    print action
-##    print dependencies
-##    print "Worker %s running task %s * %s" % (self.uid,rdd_id,hash_num)
+    (rdd_id, hash_num, rdd_type, action, dependencies, hash_func, hash_grain,
+      peers) = util.pls(pickled_args)
     action = pickle.loads(rdd_type).unserialize_action(action)
+    hash_func = util.decode_function(hash_func)
     ## TODO: Wide dependencies not supported yet
     working_data = collections.defaultdict(list)
     for dep_key in dependencies:
