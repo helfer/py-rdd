@@ -71,8 +71,8 @@ class Scheduler:
     preferred_workers = list(itertools.chain.from_iterable(dependencies.values()))
     assigned_worker = None
     while assigned_worker == None:
-      print "scheduler loops on task", rdd.__class__, hash_num
-      print "%d idle workers" % len(self.idle_workers)
+##      print "scheduler loops on task", rdd.__class__, hash_num
+##      print "%d idle workers" % len(self.idle_workers)
       if len(preferred_workers) == 0 and len(self.idle_workers) > 0:
         with self.lock:
           assigned_worker = self.idle_workers.pop()
@@ -80,22 +80,22 @@ class Scheduler:
       else:
         with self.lock:
           for worker in self.idle_workers:
-            print "peferred workers",preferred_workers
-            print "worker", worker
+##            print "peferred workers",preferred_workers
+##            print "worker", worker
             if (worker in preferred_workers or
                worker.skipcount == self.max_skipcount):
-              print "gotit"
+##              print "gotit"
               self.idle_workers.remove(worker)
               assigned_worker = worker
               break
             else:
-              print "missedit"
+##              print "missedit"
               worker.skip()
       time.sleep(0.1)
-    print "Found worker"
+##    print "Found worker"
     rdd.set_assignment(hash_num, assigned_worker)
     assigned_worker.reset_skipcount()
-    print "worker %s assigned to task" % str(assigned_worker), rdd.__class__
+##    print "worker %s assigned to task" % str(assigned_worker), rdd.__class__
     dispatch_thread = threading.Thread(target = self.dispatch,
                      args = ((rdd, hash_num), assigned_worker, dependencies))
     dispatch_thread.start()
@@ -111,13 +111,14 @@ class Scheduler:
     ## replace WorkerHandler references with appropriate uris
     dependencies = dict([(key, map(lambda worker: worker.uri, workers)) for key,
       workers in dependencies.items()])
+    parents = [parent.uid for parent in rdd.parents]
     peers = [worker.uri for worker in self.workers]
     rdd_type = pickle.dumps(rdd.__class__)
+    print "dispatching", rdd.__class__
     ## Send task to worker and wait for completion
-    print "scheduler calling worker %s" % assigned_worker.uri
+##    print "scheduler calling worker %s" % assigned_worker.uri
     pickled_args = util.pds(rdd.uid, hash_num, rdd_type,
-        rdd.serialize_action(), dependencies,
-        hash_func, rdd.hash_grain, peers)
+        rdd.serialize_action(), dependencies, parents, hash_func, peers)
     assigned_worker.run_task(pickled_args)
     ## mark task as complete
     with rdd.lock:

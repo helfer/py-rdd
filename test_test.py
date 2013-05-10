@@ -30,6 +30,8 @@ maps = rdd.MapValuesRDD(lambda x: map(int, x), lines)
 maps2 = rdd.TextFileRDD("test_data_file2").map(lambda x: map(int, x))
 joined = maps.join(maps2)
 reduced = joined.reduce_by_key(lambda x,y: x + y, 0)
+ifm = rdd.IntermediateFlatMapRDD(lambda x: (x, x), joined)
+flatmap = joined.flatMap(lambda x: (x, x))
 sched = scheduler.Scheduler("localhost",8112)
 for i in range(N):
   sched.add_worker("http://%s:%d" % ("localhost",baseport+i),i)
@@ -37,10 +39,18 @@ for i in range(N):
 #time.sleep(2)
 #for i in range(N):
 #  print "worker %d data" % i, workers[i].data
-sched.execute(reduced)
+sched.execute(flatmap)
 time.sleep(2)
 for i in range(N):
   print "worker %d data" % i, workers[i].data
+
+for i in range(N):
+  print "worker %d joined data" % i, [workers[i].data[(joined.uid, n)] for n in
+      range(3)]
+
+for i in range(N):
+  print "worker %d flatmap data" % i, [workers[i].data[(ifm.uid, n)]
+      for n in range(3)]
 
 
 time.sleep(1)

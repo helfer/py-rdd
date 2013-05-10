@@ -16,7 +16,6 @@ def pls(p):
 
 
 def encode_function(function):
-  print function
   return marshal.dumps(function.func_code)
 
 def decode_function(encoded_function):

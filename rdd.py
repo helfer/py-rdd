@@ -5,8 +5,8 @@ import threading
 import collections
 import pickle
 
-def simple_hash(key):
-    return hash(key)
+def simple_hash(key, grain):
+    return hash(key) % grain
 
 ## for now, each shard of an RDD should just be stored as a dictionary on the worker.
 
@@ -15,6 +15,7 @@ class TaskStatus:
   Assigned = 1
   Complete = 2
   Failed = 3
+
 
 ## Scheduler-local class representing a single RDD
 class RDD:
@@ -47,6 +48,8 @@ class RDD:
       status = parent.task_status[hash_num]
       if status == TaskStatus.Assigned or status == TaskStatus.Complete:
         locations[(parent.uid, hash_num)] = parent.worker_assignments[hash_num]
+      else:
+        locations[(parent.uid, hash_num)] = None
     return locations
 
   def map(self, function):
@@ -54,6 +57,9 @@ class RDD:
 
   def join(self, coparent):
     return JoinRDD(self, coparent)
+
+  def flatMap(self, function):
+    return PartitionByRDD(IntermediateFlatMapRDD(function, self))
 
   def reduce_by_key(self,function,initializer=None):
     return ReduceByKeyRDD(function, self,initializer)
@@ -67,7 +73,7 @@ class Dependency:
 
 ## For each supported transformation, we have a class derived from RDD
 class TextFileRDD(RDD):
-  def __init__(self, filename, hash_data = (simple_hash,3)):
+  def __init__(self, filename, hash_data = (lambda x: hash(x) % 3,3)):
     RDD.__init__(self, hash_data)
     self.filename = filename
 
@@ -106,9 +112,10 @@ class MapValuesRDD(RDD):
       return output
     return action
 
+
 class NullRDD(RDD):
   def __init__(self):
-    RDD.__init__(self, (simple_hash, 3))
+    RDD.__init__(self, (lambda x: hash(x) % 3, 3))
 
 
 class JoinRDD(RDD):
@@ -159,13 +166,23 @@ class IntermediateFlatMapRDD(RDD):
     function = util.decode_function(blob)
     def action(data, hash_num):
       output = {}
-      for key, value in data.items():
-        for out_key, out_value in function(value):
+      for key, seq in data.items():
+        for out_key, out_value in map(function, seq):
           output[out_key] = out_value
-    return output
+      return output
+    return action
 
 
 class PartitionByRDD(RDD):
   def __init__(self, parent):
     RDD.__init__(self, parent.hash_data, [parent])
 
+  def serialize_action(self):
+    return ''
+
+  @staticmethod
+  def unserialize_action(blob):
+    def action(data, hash_num):
+      return data
+    return action
+    pass

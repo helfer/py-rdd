@@ -18,6 +18,7 @@ import scheduler
 class ThreadedRPCServer(SocketServer.ThreadingMixIn,SimpleXMLRPCServer):
     pass
 
+
 #################
 ## Worker code ##
 #################
@@ -29,7 +30,7 @@ class Worker(threading.Thread):
     self.server.register_function(self.query_by_filter)
     self.server.register_function(self.run_task)
     self.server.register_function(self.lookup)
-    self.data = {} ## map: (rdd_id, hash_num) -> dict
+    self.data = collections.defaultdict(dict) ## map: (rdd_id, hash_num) -> dict
     #self.proxy = xmlrpclib.ServerProxy(scheduler_uri)
     self.uid = str(uuid.uuid1())
     self.uri = 'http://%s:%d' % (hostname, port)
@@ -40,7 +41,6 @@ class Worker(threading.Thread):
     threading.Thread.__init__(self)
     self.daemon = True
 
-    self.server.register_function(self.read_data)
     self.server.register_function(self.stop_server)
 
   def __hash__(self):
@@ -63,8 +63,7 @@ class Worker(threading.Thread):
     if self.data.has_key((rdd_id, hash_num)):
       return self.data[(rdd_id, hash_num)]
     else:
-      ## TODO
-      raise KeyError("RDD data not present on worker")
+      return {}
 
   def query_by_filter(self, rdd_id, filter_func):
     ## return all key/value pairs in the specified rdd for which filter_func(key) is true.
@@ -79,32 +78,50 @@ class Worker(threading.Thread):
     return self.data[(rdd_id, hash_num)][key]
 
   def run_task(self, pickled_args):
-    (rdd_id, hash_num, rdd_type, action, dependencies, hash_func, hash_grain,
-      peers) = util.pls(pickled_args)
-    action = pickle.loads(rdd_type).unserialize_action(action)
+    (rdd_id, hash_num, rdd_type, action, dependencies, parents, hash_func,
+        peers) = util.pls(pickled_args)
+    rdd_type = pickle.loads(rdd_type)
+    action = rdd_type.unserialize_action(action)
     hash_func = util.decode_function(hash_func)
-    ## TODO: Wide dependencies not supported yet
+    filter_func = util.encode_function(lambda key: hash_func(key) == hash_num)
     working_data = collections.defaultdict(list)
-    for dep_key in dependencies:
-      if not self.data.has_key(dep_key):
-        print "Querying remote server"
-        proxy = xmlrpclib.ServerProxy(dependencies[dep_key][0])
-        for k, v in proxy.query_by_hash_num(dep_key[0], dep_key[1]).items():
-          if type(v) == list:
-            working_data[k].extend(v)
-          else:
-            working_data[k].append(v)
-      else:
-        for k, v in self.data[dep_key].items():
-          if type(v) == list:
-            working_data[k].extend(v)
-          else:
-            working_data[k].append(v)
+    if rdd_type == rdd.PartitionByRDD:
+      print "querying"
+      for peer in peers:
+        if peer != self.uri:
+          proxy = xmlrpclib.ServerProxy(peer)
+        else:
+          proxy = self
+        for parent_uid in parents:
+          for k, v in proxy.query_by_hash_num(parent_uid, hash_num).items():
+            if type(v) == list:
+              working_data[k].extend(v)
+            else:
+              working_data[k].append(v)
+    else:
+      for dep_key in dependencies:
+        if not self.data.has_key(dep_key):
+          print "Querying remote server"
+          proxy = xmlrpclib.ServerProxy(dependencies[dep_key][0])
+          for k, v in proxy.query_by_hash_num(dep_key[0], dep_key[1]).items():
+            if type(v) == list:
+              working_data[k].extend(v)
+            else:
+              working_data[k].append(v)
+        else:
+          for k, v in self.data[dep_key].items():
+            if type(v) == list:
+              working_data[k].extend(v)
+            else:
+              working_data[k].append(v)
+    print "processing"
     output = action(working_data, hash_num)
-    self.data[(rdd_id, hash_num)] = output
+    if rdd_type == rdd.IntermediateFlatMapRDD:
+      print output
+      ## Split output into partial partitions
+      for k, v in output.items():
+        self.data[(rdd_id, hash_func(k))][k] = v
+    else:
+      self.data[(rdd_id, hash_num)] = output
 
-    return "OK"
-
-  def read_data(self,rdd_id,hash_num,part_func,filename):
-    print "Worker %s reading %s" % (self.uid,filename)
     return "OK"
