@@ -45,6 +45,7 @@ def pagerank(links, seed_ranks, iterations):
   damped_ranks = seed_ranks.mapValues(lambda x: a / N)
   ranks = seed_ranks
   for i in range(iterations):
+    print i
     ## RDD (targetURL, [floats])
     contribs = links.join(ranks, [], 'Z').flatMap(lambda LR: [(dest, LR[1] /
       len(LR[0])) for dest in LR[0]])

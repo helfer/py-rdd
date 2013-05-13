@@ -38,6 +38,7 @@ class Scheduler:
   def __init__(self, hostname, port, max_skipcount = 22):
     self.workers = set()
     self.idle_workers = set()
+    self.bad_workers = set()
     self.lock = threading.Lock()
     self.queue = Queue.PriorityQueue()
     self.dead = False
@@ -55,18 +56,25 @@ class Scheduler:
     except KeyError:
       pass
 
-  def execute(self, rdd):
+  def execute(self, rdd, reexecuting = False):
     for parent in rdd.parents:
-      if not parent.fully_scheduled:
+      if reexecuting or not parent.fully_scheduled:
+        ## If re-executing, just walk the whole graph and check for bad
+        ## assignments
         self.execute(parent)
+    threads = []
+    bad_worker_queue = Queue.Queue()
     for hash_num in range(rdd.hash_grain):
-      self.schedule(rdd, hash_num)
+      threads.append(self.schedule(rdd, hash_num, bad_worker_queue))
+    for thread in threads:
+      thread.join()
+    if not bad_worker_queue.empty():
+      while not bad_worker_queue.empty():
+        self.mark_bad_worker(bad_worker_queue.get())
+      self.execute(rdd, reexecuting = True)
     rdd.fully_scheduled = True
 
-  def schedule(self, rdd, hash_num):
-    ## TODO: decide if we want task-oriented or worker-oriented scheduling
-    ## right now: task-oriented. I.e., tasks are strictly scheduled in graph
-    ## traversal order
+  def schedule(self, rdd, hash_num, bad_worker_queue):
     preferred_workers = rdd.get_preferred_workers(hash_num)
     assigned_worker = None
     while assigned_worker == None:
@@ -96,10 +104,11 @@ class Scheduler:
     assigned_worker.reset_skipcount()
 ##    print "worker %s assigned to task" % str(assigned_worker), rdd.__class__
     dispatch_thread = threading.Thread(target = self.dispatch,
-                     args = ((rdd, hash_num), assigned_worker))
+                     args = ((rdd, hash_num), assigned_worker, bad_worker_queue))
     dispatch_thread.start()
+    return dispatch_thread
 
-  def dispatch(self, task, assigned_worker):
+  def dispatch(self, task, assigned_worker, bad_worker_queue):
     """Send a single task to a worker. Blocks until the task either completes or
     fails.
     task -- pair (rdd, hash num)
@@ -110,6 +119,7 @@ class Scheduler:
     ## replace WorkerHandler references with appropriate uris
     data_src = [[worker.uri for worker in parent.worker_assignments[hash_num]]
         for parent in rdd.parents]
+##    print rdd.parents
     parents = [parent.uid for parent in rdd.parents]
     peers = [worker.uri for worker in self.workers]
     rdd_type = pickle.dumps(rdd.__class__)
@@ -118,17 +128,33 @@ class Scheduler:
 ##    print "scheduler calling worker %s" % assigned_worker.uri
     pickled_args = util.pds(rdd.uid, hash_num, rdd_type,
         rdd.serialize_action(), data_src, parents, hash_func, peers)
-    assigned_worker.run_task(pickled_args)
-    ## mark task as complete
-    with rdd.lock:
+
+    error = False
+    try:
+      task_outcome = assigned_worker.run_task(pickled_args)
+      if task_outcome != "OK":
+        ## worker encountered another bad worker
+        ## and passed its uid in task_outcome
+        bad_worker_queue.put(task_outcome)
+        error = True
+    except xmlrpclib.Fault:
+      ## assume we hit a bad worker
+      bad_worker_queue.put(assigned_worker.uid)
+      error = True
+
+    if not error:
+      ## mark task as complete
       rdd.task_status[hash_num] = rdd_module.TaskStatus.Complete
     ## free worker
     with self.lock:
       self.idle_workers.add(assigned_worker)
 
-  #def run(self):
-    #self.server_thread = threading.Thread(target = self.server.serve_while_alive)
-    #self.server_thread.start()
-    #print "scheduler running"
-    #pass
-
+  def mark_bad_worker(self, bad_worker_uid):
+    ## TODO: should we ping the worker here first?
+    for worker in self.workers:
+      if worker.uid == bad_worker_uid:
+        with self.lock:
+          self.workers.remove(worker)
+          self.idle_workers.remove(worker)
+          self.bad_workers.add(worker)
+        return
