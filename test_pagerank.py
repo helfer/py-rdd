@@ -79,3 +79,7 @@ except:
   for k,v in correct_ranks.items():
     if ranks[k] != v:
       print "value", ranks[k], "of key",k,"is not",v
+
+
+for worker in workers:
+  worker.stop_server()

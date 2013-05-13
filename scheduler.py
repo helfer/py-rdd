@@ -75,7 +75,6 @@ class Scheduler:
     if not bad_worker_queue.empty():
       while not bad_worker_queue.empty():
         self.mark_bad_worker(bad_worker_queue.get())
-      print "reexecuting", rdd.__class__
       self.execute(rdd, reexecuting = True)
     rdd.fully_scheduled = True
 
@@ -84,8 +83,6 @@ class Scheduler:
       self.bad_workers)
     assigned_worker = None
     while assigned_worker == None:
-##      print "scheduler loops on task", rdd.__class__, hash_num
-##      print "%d idle workers" % len(self.idle_workers)
       if len(preferred_workers) == 0 and len(self.idle_workers) > 0:
         with self.lock:
           assigned_worker = self.idle_workers.pop()
@@ -93,22 +90,16 @@ class Scheduler:
       else:
         with self.lock:
           for worker in self.idle_workers:
-##            print "peferred workers",preferred_workers
-##            print "worker", worker
             if (worker in preferred_workers or
                worker.skipcount == self.max_skipcount):
-##              print "gotit"
               self.idle_workers.remove(worker)
               assigned_worker = worker
               break
             else:
-##              print "missedit"
               worker.skip()
       time.sleep(0.01)
-##    print "Found worker"
     rdd.set_assignment(hash_num, assigned_worker)
     assigned_worker.reset_skipcount()
-##    print "worker %s assigned to task" % str(assigned_worker), rdd.__class__
     dispatch_thread = threading.Thread(target = self.dispatch,
                      args = ((rdd, hash_num), assigned_worker, bad_worker_queue))
     dispatch_thread.start()
@@ -124,13 +115,10 @@ class Scheduler:
     hash_func = util.encode_function(rdd.hash_function)
     ## replace WorkerHandler references with appropriate uris
     data_src = [parent.worker_assignment[hash_num].uri for parent in rdd.parents]
-##    print rdd.parents
     parents = [parent.uid for parent in rdd.parents]
     peers = [worker.uri for worker in self.workers]
     rdd_type = pickle.dumps(rdd.__class__)
-##    print "dispatching", rdd.__class__
     ## Send task to worker and wait for completion
-##    print "scheduler calling worker %s" % assigned_worker.uri
     pickled_args = util.pds(rdd.uid, hash_num, rdd_type,
         rdd.serialize_action(), data_src, parents, hash_func, peers)
 
@@ -143,7 +131,6 @@ class Scheduler:
         bad_worker_queue.put(task_outcome)
         error = True
     except socket.timeout:
-      print "Scheduler caught fault"
       ## assume we hit a bad worker
       bad_worker_queue.put(assigned_worker.uid)
       error = True
@@ -156,11 +143,14 @@ class Scheduler:
       self.idle_workers.add(assigned_worker)
 
   def mark_bad_worker(self, bad_worker_uid):
-    ## TODO: should we ping the worker here first?
     for worker in self.workers:
       if worker.uid == bad_worker_uid:
-        with self.lock:
-          self.workers.remove(worker)
-          self.idle_workers.remove(worker)
-          self.bad_workers.add(worker)
+        ## See if it's realy dead
+        try:
+          worker.ping()
+        except socket.timeout:
+          with self.lock:
+            self.workers.remove(worker)
+            self.idle_workers.remove(worker)
+            self.bad_workers.add(worker)
         return
