@@ -97,8 +97,22 @@ class Worker(threading.Thread):
     action = rdd_type.unserialize_action(action)
     hash_func = util.decode_function(hash_func)
     filter_func = util.encode_function(lambda key: hash_func(key) == hash_num)
-    working_data = collections.defaultdict(list)
+    if rdd_type == rdd.JoinRDD:
+      working_data = [{}, {}]
+      for index in [0, 1]:
+        parent_uid = parents[index]
+        assignment = data_src[index]
+        key = (parent_uid, hash_num)
+        if not self.data.has_key(key):
+          proxy = xmlrpclib.ServerProxy(assignment[0])
+          working_data[index] = dict(proxy.query_by_hash_num(key))
+        else:
+          working_data[index] = self.data[key]
+      self.data[(rdd_id, hash_num)] = action(working_data[0], working_data[1])
+      return "OK"
+
     if rdd_type == rdd.PartitionByRDD:
+      working_data = collections.defaultdict(list)
       for peer in peers:
         if peer != self.uri:
           proxy = xmlrpclib.ServerProxy(peer)
@@ -111,23 +125,19 @@ class Worker(threading.Thread):
               working_data[k].extend(v)
             else:
               working_data[k].append(v)
-    else:
-      for parent_uid, assignments in zip(parents, data_src):
-        key = (parent_uid, hash_num)
-        if not self.data.has_key(key):
+    elif len(parents) > 0:
+      ## number of parents should be 1
+      parent_uid = parents[0]
+      assignments = data_src[0]
+      key = (parent_uid, hash_num)
+      if not self.data.has_key(key):
 ##          print "Querying remote server"
-          proxy = xmlrpclib.ServerProxy(assignments[0])
-          for k, v in proxy.query_by_hash_num(key):
-            if type(v) == list:
-              working_data[k].extend(v)
-            else:
-              working_data[k].append(v)
-        else:
-          for k, v in self.data[key].items():
-            if type(v) == list:
-              working_data[k].extend(v)
-            else:
-              working_data[k].append(v)
+        proxy = xmlrpclib.ServerProxy(assignments[0])
+        working_data = proxy.query_by_hash_num(key)
+      else:
+        working_data = self.data[key]
+    else:
+      working_data = {}
     output = action(working_data, hash_num)
     if rdd_type == rdd.IntermediateFlatMapRDD:
       ## Split output into partial partitions
