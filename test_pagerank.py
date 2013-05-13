@@ -9,16 +9,16 @@ import scheduler
 import rdd
 import time
 import socket
-
+import random
 # create N clients, different ports
 # create one master, give it ports of clients
 # have master take one job, split it into multiple partitions, send it to servers that are not busy. P (number of partitions), N (number of Servers): P>N
 
 baseport = 8500
-numworkers = 2
+numworkers = 5
 workers = []
-
-socket.setdefaulttimeout(4) #no custom timeouts yet... sorry
+epsilon = 10e-5
+socket.setdefaulttimeout(1) #no custom timeouts yet... sorry
 
 def getkv(string):
   k, v = string.split()
@@ -36,12 +36,20 @@ for i in range(numworkers):
 N = 11
 a = 0.15
 
-def kill(worker):
-  time.sleep(2)
+def kill(worker,t):
+  time.sleep(t)
+  print "killing a worker ..."
   worker.stop_server()
 
-killer = threading.Thread(target = kill, args = (workers[0],))
-killer.start()
+def kill_some(hitlist):
+    killers = []
+    for i in range(len(hitlist)):
+        t = random.random()*10
+        killer = threading.Thread(target = kill, args = (workers[hitlist[i]],t,))
+        killers.append(killer)
+        killers[i].start()
+
+kill_some([1])
 
 
 ## RDD of (url, [link_destinations])
@@ -71,15 +79,19 @@ ranks = pagerank(links, seed_ranks, 22)._get_data()
 print ranks
 correct_ranks = {'A': 0.03278160674806574, 'C': 0.3458609076996311, 'B': 0.3814496256075537, 'E': 0.08088589507077021, 'D': 0.03908723728670415, 'G': 0.016169498060114126, 'F': 0.03908723728670415, 'I': 0.016169498060114126, 'H': 0.016169498060114126, 'K': 0.016169498060114126, 'J': 0.016169498060114126}
 print correct_ranks
+failed = False
 try:
   assert ranks == correct_ranks
-  print "PASS"
 except:
-  print "FAIL"
   for k,v in correct_ranks.items():
-    if ranks[k] != v:
+    if ranks[k] - v > epsilon:
+      failed = True
       print "value", ranks[k], "of key",k,"is not",v
 
+if failed:
+    print "FAIL"
+else:
+    print "PASS"
 
 for worker in workers:
   worker.stop_server()

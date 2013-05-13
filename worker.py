@@ -133,7 +133,8 @@ class Worker(threading.Thread):
           proxy = xmlrpclib.ServerProxy(assignment)
           try:
             working_data[index] = self.query_remote(key,proxy)
-          except socket.timeout:
+          except (socket.timeout,KeyError):
+            print "timeout or key error"
             return assignment
         else:
           with self.lock:
@@ -177,7 +178,8 @@ class Worker(threading.Thread):
         proxy = xmlrpclib.ServerProxy(assignment)
         try:
           working_data = self.query_remote(key,proxy)
-        except socket.timeout:
+        except (socket.timeout , KeyError):
+          print "fetch timeout or KeyError"
           return assignment
       else:
         with self.lock:
