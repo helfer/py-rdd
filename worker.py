@@ -5,7 +5,7 @@ import util
 import rdd
 import SocketServer
 import threading
-from SimpleXMLRPCServer import SimpleXMLRPCServer
+from SimpleXMLRPCServer import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
 import xmlrpclib
 import types
 import marshal
@@ -14,10 +14,22 @@ import scheduler
 #todo: way of dropping rpc calls before processing or after processing
 #todo: way of introducing random delays
 
+class SimpleXMLRPCWrapper(SimpleXMLRPCServer):
+  def __init__(self, addr):
+    SimpleXMLRPCServer.__init__(self, addr, Handler)
 
-class ThreadedRPCServer(SocketServer.ThreadingMixIn,SimpleXMLRPCServer):
+class ThreadedRPCServer(SocketServer.ThreadingMixIn,SimpleXMLRPCWrapper):
     pass
 
+
+class Handler(SimpleXMLRPCRequestHandler):
+  def _dispatch(self, method, params):
+    try:
+      return self.server.funcs[method](*params)
+    except:
+      import traceback
+      traceback.print_exc()
+      raise
 
 #################
 ## Worker code ##
@@ -92,8 +104,11 @@ class Worker(threading.Thread):
           proxy = xmlrpclib.ServerProxy(peer)
         else:
           proxy = self
+        print parents
         for parent_uid in parents:
-          for k, v in proxy.query_by_hash_num(parent_uid, hash_num).items():
+          queried_data = proxy.query_by_hash_num(parent_uid, hash_num)
+          print "queried_data", queried_data
+          for k, v in queried_data.items():
             if type(v) == list:
               working_data[k].extend(v)
             else:
