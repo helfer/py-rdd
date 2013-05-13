@@ -53,7 +53,6 @@ def pagerank(links, seed_ranks, iterations):
       (1 - a) * s).join(damped_ranks, 0, a / N).mapValues(lambda pair: pair[0] + pair[1])
     sched.execute(ranks)
     time.sleep(0.1)
-    print "ranks", ranks
   return ranks
 
 ##pagerank(links, seed_ranks, 3)
