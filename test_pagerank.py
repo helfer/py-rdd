@@ -55,4 +55,5 @@ def pagerank(links, seed_ranks, iterations):
     time.sleep(0.1)
   return ranks
 
-##pagerank(links, seed_ranks, 3)
+ranks = pagerank(links, seed_ranks, 22)
+print ranks
