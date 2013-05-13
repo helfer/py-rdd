@@ -41,7 +41,7 @@ class RDD:
     self.lock = threading.Lock()
     self.fully_scheduled = False
 
-  def __repr__(self):
+  def __str__(self):
     output = {}
     for num in range(self.hash_grain):
       proxy = xmlrpclib.ServerProxy(self.worker_assignments[num][0].uri)

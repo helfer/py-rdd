@@ -33,31 +33,28 @@ for i in range(numworkers):
 N = 12
 a = 0.15
 
-f = lambda x: a / N
-print f.func_globals
 
 ## RDD of (url, [link_destinations])
 links = rdd.TextFileRDD('./pagerank_data.txt', lambda line:
-    line.split(), multivalue = True)
+    line.split(), multivalue = True, scheduler = sched)
 ## RDD of (url, rank)
 orig_ranks = rdd.TextFileRDD('./urls.txt', lambda line: (line.strip(), 1. / 12))
 damped_ranks = orig_ranks.mapValues(lambda x: a / N)
 ranks = orig_ranks
 
-for i in range(5):
-  ## RDD (targetURL, [floats])
-  contribs = links.join(ranks, [], 'Z').flatMap(lambda LR: [(dest, LR[1] /
-    len(LR[0])) for dest in LR[0]])
-  ## RDD
-  ranks = contribs.reduceByKey(lambda x, y: x + y, 0).mapValues(lambda s: .15 / 12
-      + (1 - .15) * s).join(damped_ranks, 0, 0).mapValues(lambda pair: max(pair[0],
-        pair[1]))
-  sched.execute(ranks)
-  time.sleep(1)
-  print "links", links
-  print "contribs", contribs
-  print "ranks", ranks
-
-
+def pagerank(iterations):
+  for i in range(iterations):
+    ## RDD (targetURL, [floats])
+    contribs = links.join(ranks, [], 'Z').flatMap(lambda LR: [(dest, LR[1] /
+      len(LR[0])) for dest in LR[0]])
+    ## RDD
+    ranks = contribs.reduceByKey(lambda x, y: x + y, 0).mapValues(lambda s: .15 / 12
+        + (1 - .15) * s).join(damped_ranks, 0, 0).mapValues(lambda pair: max(pair[0],
+          pair[1]))
+    sched.execute(ranks)
+    time.sleep(1)
+    print "links", links
+    print "contribs", contribs
+    print "ranks", ranks
 
 time.sleep(2)
