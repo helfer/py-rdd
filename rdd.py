@@ -20,10 +20,14 @@ class TaskStatus:
 
 ## Scheduler-local class representing a single RDD
 class RDD:
-  def __init__(self, hash_data, parents = None):
+  def __init__(self, hash_data, parents = None, scheduler = None):
     ## parents should be a list of pairs (RDD, dependency_type)
     if parents is None:
         parents = []
+    self.scheduler = scheduler
+    if scheduler == None and parents != []:
+      print parents
+      self.scheduler = parents[0].scheduler
     self.hash_data = hash_data
     self.hash_function, self.hash_grain = hash_data
     self.parents = parents
@@ -43,6 +47,9 @@ class RDD:
       proxy = xmlrpclib.ServerProxy(self.worker_assignments[num][0].uri)
       output.update(proxy.query_by_hash_num((self.uid, num)))
     return str(output)
+
+  def execute(self):
+    self.scheduler.execute(self)
 
 
   def set_assignment(self, hash_num, worker):
@@ -84,8 +91,9 @@ class Dependency:
 
 ## For each supported transformation, we have a class derived from RDD
 class TextFileRDD(RDD):
-  def __init__(self, filename, function, multivalue = False, hash_data = (lambda x: hash(x) % 3,3)):
-    RDD.__init__(self, hash_data)
+  def __init__(self, filename, function, multivalue = False, hash_data =
+      (lambda x: hash(x) % 3,3), scheduler = None):
+    RDD.__init__(self, hash_data, scheduler = scheduler)
     self.filename = filename
     self.function = function
     self.multivalue = multivalue

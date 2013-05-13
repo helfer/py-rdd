@@ -16,7 +16,7 @@ import scheduler
 
 class SimpleXMLRPCWrapper(SimpleXMLRPCServer):
   def __init__(self, addr):
-    SimpleXMLRPCServer.__init__(self, addr, Handler)
+    SimpleXMLRPCServer.__init__(self, addr, Handler, logRequests = False)
 
 class ThreadedRPCServer(SocketServer.ThreadingMixIn,SimpleXMLRPCWrapper):
     pass
