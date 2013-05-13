@@ -131,9 +131,9 @@ class Worker(threading.Thread):
       assignments = data_src[0]
       key = (parent_uid, hash_num)
       if not self.data.has_key(key):
-##          print "Querying remote server"
+        print "Querying remote server"
         proxy = xmlrpclib.ServerProxy(assignments[0])
-        working_data = proxy.query_by_hash_num(key)
+        working_data = dict(proxy.query_by_hash_num(key))
       else:
         working_data = self.data[key]
     else:
@@ -142,7 +142,12 @@ class Worker(threading.Thread):
     if rdd_type == rdd.IntermediateFlatMapRDD:
       ## Split output into partial partitions
       for k, v in output.items():
-        self.data[(rdd_id, hash_func(k))][k] = v
+        ## v should be a list
+        key = (rdd_id, hash_func(k))
+        if self.data[key].has_key(k):
+          self.data[key][k].extend(v)
+        else:
+          self.data[key][k] = v
     else:
       self.data[(rdd_id, hash_num)] = output
 

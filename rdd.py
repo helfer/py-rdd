@@ -26,7 +26,6 @@ class RDD:
         parents = []
     self.scheduler = scheduler
     if scheduler == None and parents != []:
-      print parents
       self.scheduler = parents[0].scheduler
     self.hash_data = hash_data
     self.hash_function, self.hash_grain = hash_data
@@ -41,12 +40,16 @@ class RDD:
     self.lock = threading.Lock()
     self.fully_scheduled = False
 
-  def __str__(self):
+  def _get_data(self):
+    ## for testing
     output = {}
     for num in range(self.hash_grain):
       proxy = xmlrpclib.ServerProxy(self.worker_assignments[num][0].uri)
       output.update(proxy.query_by_hash_num((self.uid, num)))
-    return str(output)
+    return output
+
+  def __str__(self):
+    return str(self._get_data())
 
   def execute(self):
     self.scheduler.execute(self)
@@ -123,7 +126,8 @@ class TextFileRDD(RDD):
         f = open(filename)
         for line in f.readlines():
           key, value = function(line)
-          output[key] = value
+          if hash_function(key) == hash_num:
+            output[key] = value
         f.close()
         return output
 

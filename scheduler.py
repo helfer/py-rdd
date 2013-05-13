@@ -90,7 +90,7 @@ class Scheduler:
             else:
 ##              print "missedit"
               worker.skip()
-      time.sleep(0.1)
+      time.sleep(0.01)
 ##    print "Found worker"
     rdd.set_assignment(hash_num, assigned_worker)
     assigned_worker.reset_skipcount()
