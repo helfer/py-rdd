@@ -30,15 +30,18 @@ sched = scheduler.Scheduler("localhost",8112)
 for i in range(numworkers):
   sched.add_worker("http://%s:%d" % ("localhost",baseport+i),i)
 
-N = 11
+N = 12
 a = 0.15
+
+f = lambda x: a / N
+print f.func_globals
 
 ## RDD of (url, [link_destinations])
 links = rdd.TextFileRDD('./pagerank_data.txt', lambda line:
     line.split(), multivalue = True)
 ## RDD of (url, rank)
 orig_ranks = rdd.TextFileRDD('./urls.txt', lambda line: (line.strip(), 1. / 12))
-damped_ranks = orig_ranks.mapValues(lambda x: .15 / 12)
+damped_ranks = orig_ranks.mapValues(lambda x: a / N)
 ranks = orig_ranks
 
 for i in range(5):

@@ -91,19 +91,22 @@ class TextFileRDD(RDD):
     self.multivalue = multivalue
 
   def serialize_action(self):
-    return self.filename, util.encode_function(self.function), self.multivalue
+    return (self.filename, util.encode_function(self.function),
+  util.encode_function(self.hash_function), self.multivalue)
 
   @staticmethod
   def unserialize_action(blob):
-    filename, function, multivalue = blob
+    filename, function, hash_function, multivalue = blob
     function = util.decode_function(function)
+    hash_function = util.decode_function(hash_function)
     if multivalue:
       def action(data, hash_num):
         output = collections.defaultdict(list)
         f = open(filename)
         for line in f.readlines():
           key, value = function(line)
-          output[key].append(value)
+          if hash_function(key) == hash_num:
+            output[key].append(value)
         f.close()
         return output
     else:
