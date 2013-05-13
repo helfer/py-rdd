@@ -137,7 +137,7 @@ class Scheduler:
         ## and passed its uid in task_outcome
         bad_worker_queue.put(task_outcome)
         error = True
-    except xmlrpclib.Fault:
+    except Exception:
       ## assume we hit a bad worker
       bad_worker_queue.put(assigned_worker.uid)
       error = True

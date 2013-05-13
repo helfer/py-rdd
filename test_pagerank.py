@@ -1,4 +1,4 @@
-
+import threading
 import worker
 import xmlrpclib
 import marshal
@@ -35,6 +35,13 @@ for i in range(numworkers):
 
 N = 11
 a = 0.15
+
+def kill(worker):
+  time.sleep(3)
+  worker.stop_server()
+
+killer = threading.Thread(target = kill, args = (workers[0],))
+killer.start()
 
 
 ## RDD of (url, [link_destinations])

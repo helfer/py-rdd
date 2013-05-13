@@ -99,7 +99,7 @@ class Worker(threading.Thread):
   #  with self.lock:
   #    return self.data[(rdd_id, hash_num)][key]
 
-  def query_remote(self,key,proxy,default=None): 
+  def query_remote(self,key,proxy,default=None):
     #time.sleep(0.2)
     ok, queried_data = proxy.query_by_hash_num(key)
     if ok:
@@ -108,7 +108,7 @@ class Worker(threading.Thread):
       if default is None:
         raise KeyError("remote data not found")
       else:
-        print "remote data not found, using default"
+##        print "remote data not found, using default"
         return {}
 
   def run_task(self, pickled_args):
@@ -118,7 +118,7 @@ class Worker(threading.Thread):
     action = rdd_type.unserialize_action(action)
     hash_func = util.decode_function(hash_func)
     filter_func = util.encode_function(lambda key: hash_func(key) == hash_num)
-    
+
     if rdd_type == rdd.JoinRDD:
       working_data = [{}, {}]
       for index in [0, 1]:
