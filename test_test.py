@@ -28,7 +28,7 @@ for i in range(N):
 lines = rdd.TextFileRDD("test_data_file", lambda line: line.split())
 maps = rdd.MapValuesRDD(lambda x: map(int, x), lines)
 maps2 = rdd.TextFileRDD("test_data_file2", lambda line: line.split()).mapValues(lambda x: map(int, x))
-joined = maps.join(maps2)
+joined = maps.join(maps2, 0, 0)
 reduced = joined.reduceByKey(lambda x,y: x + y, 0)
 ifm = rdd.IntermediateFlatMapRDD(lambda x: (x, x), joined)
 flatmap = joined.flatMap(lambda x: (x, x))

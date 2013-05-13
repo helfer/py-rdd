@@ -63,8 +63,8 @@ class RDD:
   def mapValues(self, function):
     return MapValuesRDD(function, self)
 
-  def join(self, coparent):
-    return JoinRDD(self, coparent)
+  def join(self, coparent, default_val1, default_val2):
+    return JoinRDD(self, coparent, default_val1, default_val2)
 
   def flatMap(self, function):
     return PartitionByRDD(IntermediateFlatMapRDD(function, self))
@@ -84,26 +84,38 @@ class Dependency:
 
 ## For each supported transformation, we have a class derived from RDD
 class TextFileRDD(RDD):
-  def __init__(self, filename, function, hash_data = (lambda x: hash(x) % 3,3)):
+  def __init__(self, filename, function, multivalue = False, hash_data = (lambda x: hash(x) % 3,3)):
     RDD.__init__(self, hash_data)
     self.filename = filename
     self.function = function
+    self.multivalue = multivalue
 
   def serialize_action(self):
-    return self.filename, util.encode_function(self.function)
+    return self.filename, util.encode_function(self.function), self.multivalue
 
   @staticmethod
   def unserialize_action(blob):
-    filename, function = blob
+    filename, function, multivalue = blob
     function = util.decode_function(function)
-    def action(data, hash_num):
-      output = collections.defaultdict(list)
-      f = open(filename)
-      for line in f.readlines():
-        key, value = function(line)
-        output[key].append(value)
-      f.close()
-      return output
+    if multivalue:
+      def action(data, hash_num):
+        output = collections.defaultdict(list)
+        f = open(filename)
+        for line in f.readlines():
+          key, value = function(line)
+          output[key].append(value)
+        f.close()
+        return output
+    else:
+      def action(data, hash_num):
+        output = collections.defaultdict(list)
+        f = open(filename)
+        for line in f.readlines():
+          key, value = function(line)
+          output[key] = value
+        f.close()
+        return output
+
     return action
 
 class MapValuesRDD(RDD):
@@ -132,16 +144,27 @@ class NullRDD(RDD):
 
 
 class JoinRDD(RDD):
-  def __init__(self,parent1,parent2):
+  def __init__(self,parent1,parent2, default_val1, default_val2):
     RDD.__init__(self, (parent1.hash_function,parent1.hash_grain),[parent1, parent2])
+    self.default_val1 = default_val1
+    self.default_val2 = default_val2
 
   def serialize_action(self):
-    return ''
+    return (self.default_val1, self.default_val2)
 
   @staticmethod
   def unserialize_action(blob):
-    def action(data,hash_num):
-      return data
+    (default_val1, default_val2) = blob
+    def action(data1, data2):
+      output = {}
+      for k in set(data1.keys()).union(data2.keys()):
+        if not data1.has_key(k):
+          output[k] = (default_val1, data2[k])
+        elif not data2.has_key(k):
+          output[k] = (data1[k], default_val2)
+        else:
+          output[k] = (data1[k], data2[k])
+      return output
     return action
 
 
@@ -178,12 +201,12 @@ class IntermediateFlatMapRDD(RDD):
   def unserialize_action(blob):
     function = util.decode_function(blob)
     def action(data, hash_num):
-      output = {}
-      for key, seq in data.items():
-        for out_key, out_value in map(function, seq):
+      output = collections.defaultdict(list)
+      for key, val in data.items():
+        for out_key, out_value in function(val):
           ## note: out_key must have type string in order to be sent through
           ## RPC
-          output[out_key] = out_value
+          output[out_key].append(out_value)
       return output
     return action
 
