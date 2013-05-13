@@ -8,6 +8,7 @@ import traceback
 import scheduler
 import rdd
 import time
+import socket
 
 # create N clients, different ports
 # create one master, give it ports of clients
@@ -16,6 +17,8 @@ import time
 baseport = 8500
 numworkers = 2
 workers = []
+
+socket.setdefaulttimeout(4) #no custom timeouts yet... sorry
 
 def getkv(string):
   k, v = string.split()
@@ -53,7 +56,18 @@ def pagerank(links, seed_ranks, iterations):
       (1 - a) * s).join(damped_ranks, 0, a / N).mapValues(lambda pair: pair[0] + pair[1])
     sched.execute(ranks)
     time.sleep(0.1)
+    #workers[0].stop_server()
   return ranks
 
-ranks = pagerank(links, seed_ranks, 22)
+ranks = pagerank(links, seed_ranks, 22)._get_data()
 print ranks
+correct_ranks = {'A': 0.03278160674806574, 'C': 0.3458609076996311, 'B': 0.3814496256075537, 'E': 0.08088589507077021, 'D': 0.03908723728670415, 'G': 0.016169498060114126, 'F': 0.03908723728670415, 'I': 0.016169498060114126, 'H': 0.016169498060114126, 'K': 0.016169498060114126, 'J': 0.016169498060114126}
+print correct_ranks
+try:
+  assert ranks == correct_ranks
+  print "PASS"
+except:
+  print "FAIL"
+  for k,v in correct_ranks.items():
+    if ranks[k] != v:
+      print "value", ranks[k], "of key",k,"is not",v

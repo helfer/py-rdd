@@ -45,7 +45,11 @@ class RDD:
     output = {}
     for num in range(self.hash_grain):
       proxy = xmlrpclib.ServerProxy(self.worker_assignments[num][0].uri)
-      output.update(proxy.query_by_hash_num((self.uid, num)))
+      ok, worker_data = proxy.query_by_hash_num((self.uid, num))
+      if ok:
+          output.update(worker_data)
+      else:
+        raise KeyError("data missing")
     return output
 
   def __str__(self):
