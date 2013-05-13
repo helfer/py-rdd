@@ -37,7 +37,7 @@ N = 11
 a = 0.15
 
 def kill(worker):
-  time.sleep(3)
+  time.sleep(2)
   worker.stop_server()
 
 killer = threading.Thread(target = kill, args = (workers[0],))

@@ -1,4 +1,5 @@
 import rdd as rdd_module
+import socket
 import util
 import itertools
 import Queue
@@ -61,21 +62,26 @@ class Scheduler:
       if reexecuting or not parent.fully_scheduled:
         ## If re-executing, just walk the whole graph and check for bad
         ## assignments
-        self.execute(parent)
+        self.execute(parent, reexecuting)
+
     threads = []
     bad_worker_queue = Queue.Queue()
     for hash_num in range(rdd.hash_grain):
-      threads.append(self.schedule(rdd, hash_num, bad_worker_queue))
+      if (rdd.task_status[hash_num] == rdd_module.TaskStatus.Unscheduled or
+          rdd.worker_assignment[hash_num] in self.bad_workers):
+        threads.append(self.schedule(rdd, hash_num, bad_worker_queue))
     for thread in threads:
       thread.join()
     if not bad_worker_queue.empty():
       while not bad_worker_queue.empty():
         self.mark_bad_worker(bad_worker_queue.get())
+      print "reexecuting", rdd.__class__
       self.execute(rdd, reexecuting = True)
     rdd.fully_scheduled = True
 
   def schedule(self, rdd, hash_num, bad_worker_queue):
-    preferred_workers = rdd.get_preferred_workers(hash_num)
+    preferred_workers = (set(rdd.get_preferred_workers(hash_num)) -
+      self.bad_workers)
     assigned_worker = None
     while assigned_worker == None:
 ##      print "scheduler loops on task", rdd.__class__, hash_num
@@ -117,8 +123,7 @@ class Scheduler:
     rdd, hash_num = task
     hash_func = util.encode_function(rdd.hash_function)
     ## replace WorkerHandler references with appropriate uris
-    data_src = [[worker.uri for worker in parent.worker_assignments[hash_num]]
-        for parent in rdd.parents]
+    data_src = [parent.worker_assignment[hash_num].uri for parent in rdd.parents]
 ##    print rdd.parents
     parents = [parent.uid for parent in rdd.parents]
     peers = [worker.uri for worker in self.workers]
@@ -137,7 +142,8 @@ class Scheduler:
         ## and passed its uid in task_outcome
         bad_worker_queue.put(task_outcome)
         error = True
-    except Exception:
+    except socket.timeout:
+      print "Scheduler caught fault"
       ## assume we hit a bad worker
       bad_worker_queue.put(assigned_worker.uid)
       error = True

@@ -35,7 +35,7 @@ class RDD:
     self.children = []
     self.uid = str(uuid.uuid1())
     self.fully_scheduled = False
-    self.worker_assignments = collections.defaultdict(list) ## map: hash_num -> [workers]
+    self.worker_assignment = {} ## map: hash_num -> worker
     self.task_status = collections.defaultdict(lambda : TaskStatus.Unscheduled) ## map: hash_num -> bool
     self.lock = threading.Lock()
     self.fully_scheduled = False
@@ -44,7 +44,7 @@ class RDD:
     ## for testing
     output = {}
     for num in range(self.hash_grain):
-      proxy = xmlrpclib.ServerProxy(self.worker_assignments[num][0].uri)
+      proxy = xmlrpclib.ServerProxy(self.worker_assignment[num].uri)
       ok, worker_data = proxy.query_by_hash_num((self.uid, num))
       if ok:
           output.update(worker_data)
@@ -60,7 +60,7 @@ class RDD:
 
 
   def set_assignment(self, hash_num, worker):
-    self.worker_assignments[hash_num].append(worker)
+    self.worker_assignment[hash_num] = worker
     self.task_status[hash_num] = TaskStatus.Assigned
 
   def get_preferred_workers(self, hash_num):
@@ -70,7 +70,7 @@ class RDD:
     for parent in self.parents:
       status = parent.task_status[hash_num]
       if status == TaskStatus.Assigned or status == TaskStatus.Complete:
-        locations.extend(parent.worker_assignments[hash_num])
+        locations.append(parent.worker_assignment[hash_num])
     return locations
 
 
@@ -88,7 +88,7 @@ class RDD:
 
   def lookup(self, key):
     hash_num = self.hash_function(key)
-    return self.worker_assignments[hash_num][0].lookup(self.uid, hash_num, key)
+    return self.worker_assignments[hash_num].lookup(self.uid, hash_num, key)
 
   def map(self, function):
     return PartitionByRDD(IntermediateMapRDD(function, self))

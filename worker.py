@@ -1,4 +1,5 @@
 import uuid
+import socket
 import collections
 import pickle
 import util
@@ -129,8 +130,11 @@ class Worker(threading.Thread):
           data_is_local = self.data.has_key(key)
         if not data_is_local:
           print "Join: Querying remote server"
-          proxy = xmlrpclib.ServerProxy(assignment[0])
-          working_data[index] = self.query_remote(key,proxy)
+          proxy = xmlrpclib.ServerProxy(assignment)
+          try:
+            working_data[index] = self.query_remote(key,proxy)
+          except socket.timeout:
+            return assignment
         else:
           with self.lock:
             working_data[index] = self.data[key]
@@ -147,7 +151,10 @@ class Worker(threading.Thread):
           proxy = self
         for parent_uid in parents:
           key = (parent_uid, hash_num)
-          queried_data = self.query_remote(key,proxy,{})
+          try:
+            queried_data = self.query_remote(key,proxy,{})
+          except socket.timeout:
+            return peer
           #print queried_data
           try:
             for k, v in queried_data.items():
@@ -161,14 +168,17 @@ class Worker(threading.Thread):
     elif len(parents) > 0:
       ## number of parents should be 1
       parent_uid = parents[0]
-      assignments = data_src[0]
+      assignment = data_src[0]
       key = (parent_uid, hash_num)
       with self.lock:
         data_is_local = self.data.has_key(key)
       if not data_is_local:
         print "Querying remote server"
-        proxy = xmlrpclib.ServerProxy(assignments[0])
-        working_data = self.query_remote(key,proxy)
+        proxy = xmlrpclib.ServerProxy(assignment)
+        try:
+          working_data = self.query_remote(key,proxy)
+        except socket.timeout:
+          return assignment
       else:
         with self.lock:
           working_data = self.data[key]
