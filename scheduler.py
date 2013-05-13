@@ -67,8 +67,7 @@ class Scheduler:
     ## TODO: decide if we want task-oriented or worker-oriented scheduling
     ## right now: task-oriented. I.e., tasks are strictly scheduled in graph
     ## traversal order
-    dependencies = rdd.get_locality_info(hash_num)
-    preferred_workers = list(itertools.chain.from_iterable(dependencies.values()))
+    preferred_workers = rdd.get_preferred_workers(hash_num)
     assigned_worker = None
     while assigned_worker == None:
 ##      print "scheduler loops on task", rdd.__class__, hash_num
@@ -97,10 +96,10 @@ class Scheduler:
     assigned_worker.reset_skipcount()
 ##    print "worker %s assigned to task" % str(assigned_worker), rdd.__class__
     dispatch_thread = threading.Thread(target = self.dispatch,
-                     args = ((rdd, hash_num), assigned_worker, dependencies))
+                     args = ((rdd, hash_num), assigned_worker))
     dispatch_thread.start()
 
-  def dispatch(self, task, assigned_worker, dependencies):
+  def dispatch(self, task, assigned_worker):
     """Send a single task to a worker. Blocks until the task either completes or
     fails.
     task -- pair (rdd, hash num)
@@ -109,16 +108,16 @@ class Scheduler:
     rdd, hash_num = task
     hash_func = util.encode_function(rdd.hash_function)
     ## replace WorkerHandler references with appropriate uris
-    dependencies = dict([(key, map(lambda worker: worker.uri, workers)) for key,
-      workers in dependencies.items()])
+    data_src = [[worker.uri for worker in parent.worker_assignments[hash_num]]
+        for parent in rdd.parents]
     parents = [parent.uid for parent in rdd.parents]
     peers = [worker.uri for worker in self.workers]
     rdd_type = pickle.dumps(rdd.__class__)
-    print "dispatching", rdd.__class__
+##    print "dispatching", rdd.__class__
     ## Send task to worker and wait for completion
 ##    print "scheduler calling worker %s" % assigned_worker.uri
     pickled_args = util.pds(rdd.uid, hash_num, rdd_type,
-        rdd.serialize_action(), dependencies, parents, hash_func, peers)
+        rdd.serialize_action(), data_src, parents, hash_func, peers)
     assigned_worker.run_task(pickled_args)
     ## mark task as complete
     with rdd.lock:

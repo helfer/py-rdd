@@ -25,11 +25,11 @@ for i in range(N):
   workers.append(worker.Worker("localhost",baseport+i))
   workers[i].start()
 
-lines = rdd.TextFileRDD("test_data_file")
+lines = rdd.TextFileRDD("test_data_file", lambda line: line.split())
 maps = rdd.MapValuesRDD(lambda x: map(int, x), lines)
-maps2 = rdd.TextFileRDD("test_data_file2").map(lambda x: map(int, x))
+maps2 = rdd.TextFileRDD("test_data_file2", lambda line: line.split()).mapValues(lambda x: map(int, x))
 joined = maps.join(maps2)
-reduced = joined.reduce_by_key(lambda x,y: x + y, 0)
+reduced = joined.reduceByKey(lambda x,y: x + y, 0)
 ifm = rdd.IntermediateFlatMapRDD(lambda x: (x, x), joined)
 flatmap = joined.flatMap(lambda x: (x, x))
 sched = scheduler.Scheduler("localhost",8112)
@@ -40,7 +40,7 @@ for i in range(N):
 #for i in range(N):
 #  print "worker %d data" % i, workers[i].data
 sched.execute(flatmap)
-time.sleep(2)
+time.sleep(1)
 for i in range(N):
   print "worker %d data" % i, workers[i].data
 
@@ -49,7 +49,7 @@ for i in range(N):
       range(3)]
 
 for i in range(N):
-  print "worker %d flatmap data" % i, [workers[i].data[(ifm.uid, n)]
+  print "worker %d flatmap data" % i, [workers[i].data[(flatmap.uid, n)]
       for n in range(3)]
 
 

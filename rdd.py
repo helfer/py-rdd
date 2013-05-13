@@ -4,6 +4,7 @@ import copy
 import threading
 import collections
 import pickle
+import xmlrpclib
 
 def simple_hash(key, grain):
     return hash(key) % grain
@@ -36,23 +37,30 @@ class RDD:
     self.lock = threading.Lock()
     self.fully_scheduled = False
 
+  def __repr__(self):
+    output = {}
+    for num in range(self.hash_grain):
+      proxy = xmlrpclib.ServerProxy(self.worker_assignments[num][0].uri)
+      output.update(proxy.query_by_hash_num((self.uid, num)))
+    return str(output)
+
+
   def set_assignment(self, hash_num, worker):
     self.worker_assignments[hash_num].append(worker)
     self.task_status[hash_num] = TaskStatus.Assigned
 
-  def get_locality_info(self, hash_num):
+  def get_preferred_workers(self, hash_num):
     """Given a hash number, return the data location of any scheduled or
     completed partitions in parents with narrow dependency."""
-    locations = {}
+    locations = []
     for parent in self.parents:
       status = parent.task_status[hash_num]
       if status == TaskStatus.Assigned or status == TaskStatus.Complete:
-        locations[(parent.uid, hash_num)] = parent.worker_assignments[hash_num]
-      else:
-        locations[(parent.uid, hash_num)] = None
+        locations.extend(parent.worker_assignments[hash_num])
     return locations
 
-  def map(self, function):
+
+  def mapValues(self, function):
     return MapValuesRDD(function, self)
 
   def join(self, coparent):
@@ -61,34 +69,39 @@ class RDD:
   def flatMap(self, function):
     return PartitionByRDD(IntermediateFlatMapRDD(function, self))
 
-  def reduce_by_key(self,function,initializer=None):
+  def reduceByKey(self,function,initializer=None):
     return ReduceByKeyRDD(function, self,initializer)
 
   def lookup(self, key):
     hash_num = self.hash_function(key)
     return self.worker_assignments[hash_num][0].lookup(self.uid, hash_num, key)
 
+  def map(self, function):
+    return PartitionByRDD(IntermediateMapRDD(function, self))
+
 class Dependency:
   Narrow, Wide = 0, 1
 
 ## For each supported transformation, we have a class derived from RDD
 class TextFileRDD(RDD):
-  def __init__(self, filename, hash_data = (lambda x: hash(x) % 3,3)):
+  def __init__(self, filename, function, hash_data = (lambda x: hash(x) % 3,3)):
     RDD.__init__(self, hash_data)
     self.filename = filename
+    self.function = function
 
   def serialize_action(self):
-    return self.filename
+    return self.filename, util.encode_function(self.function)
 
   @staticmethod
   def unserialize_action(blob):
-    filename = blob
+    filename, function = blob
+    function = util.decode_function(function)
     def action(data, hash_num):
-      output = {}
+      output = collections.defaultdict(list)
       f = open(filename)
       for line in f.readlines():
-        key, value = line.split()
-        output[key] = value
+        key, value = function(line)
+        output[key].append(value)
       f.close()
       return output
     return action
@@ -168,6 +181,8 @@ class IntermediateFlatMapRDD(RDD):
       output = {}
       for key, seq in data.items():
         for out_key, out_value in map(function, seq):
+          ## note: out_key must have type string in order to be sent through
+          ## RPC
           output[out_key] = out_value
       return output
     return action
@@ -186,3 +201,25 @@ class PartitionByRDD(RDD):
       return data
     return action
     pass
+
+
+class IntermediateMapRDD(RDD):
+  def __init__(self, function, parent):
+    RDD.__init__(self, parent.hash_data, [parent])
+    self.function = function
+
+  def serialize_action(self):
+    return util.encode_function(self.function)
+
+  @staticmethod
+  def unserialize_action(blob):
+    function = util.decode_function(blob)
+    def action(data, hash_num):
+      output = {}
+      for key, value in data.items():
+          ## note: out_key must have type string in order to be sent through
+          ## RPC
+          out_key, out_value = function(key, value)
+          output[out_key] = out_value
+      return output
+    return action
