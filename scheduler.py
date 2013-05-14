@@ -14,7 +14,9 @@ import base64
 
 class WorkerHandler(xmlrpclib.ServerProxy):
   def __init__(self, uri, uid):
-    xmlrpclib.ServerProxy.__init__(self, uri, allow_none = True)
+    t = util.TimeoutTransport()
+    t.set_timeout(1.0)
+    xmlrpclib.ServerProxy.__init__(self, uri, transport = t,allow_none = True)
     self.skipcount = 0
     self.uid = uid
     self.uri = uri
@@ -146,11 +148,11 @@ class Scheduler:
     for worker in self.workers:
       if worker.uid == bad_worker_uid:
         ## See if it's realy dead
-        try:
-          worker.ping()
-        except socket.timeout:
+        #try:
+        #  worker.ping()
+        #except socket.timeout:
           with self.lock:
             self.workers.remove(worker)
             self.idle_workers.remove(worker)
             self.bad_workers.add(worker)
-        return
+          return

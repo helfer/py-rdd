@@ -18,7 +18,7 @@ baseport = 8500
 numworkers = 5
 workers = []
 epsilon = 10e-5
-socket.setdefaulttimeout(1) #no custom timeouts yet... sorry
+#socket.setdefaulttimeout(2) #no custom timeouts yet... sorry
 
 def getkv(string):
   k, v = string.split()
@@ -49,7 +49,7 @@ def kill_some(hitlist):
         killers.append(killer)
         killers[i].start()
 
-kill_some([1])
+kill_some([1,3,4])
 
 
 ## RDD of (url, [link_destinations])
@@ -92,6 +92,8 @@ if failed:
     print "FAIL"
 else:
     print "PASS"
+
+print sched.workers
 
 for worker in workers:
   worker.stop_server()

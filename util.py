@@ -3,7 +3,24 @@ import collections
 import marshal
 import pickle
 import base64
+import httplib
+import xmlrpclib
 
+class HTTP_with_timeout(httplib.HTTP):
+    def __init__(self, host='', port=None, strict=None, timeout=5.0):
+        if port == 0: port = None
+        self._setup(self._connection_class(host, port, strict, timeout=timeout))
+
+    def getresponse(self, *args, **kw):
+        return self._conn.getresponse(*args, **kw)
+
+class TimeoutTransport(xmlrpclib.Transport):
+    timeout = 10.0
+    def set_timeout(self, timeout):
+        self.timeout = timeout
+    def make_connection(self, host):
+        h = HTTP_with_timeout(host, timeout=self.timeout)
+        return h
 
 def capture_globals(func):
   output = {}

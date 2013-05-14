@@ -40,6 +40,8 @@ class Handler(SimpleXMLRPCRequestHandler):
 class Worker(threading.Thread):
   def __init__(self, hostname, port):#, scheduler_uri):
     self.lock = threading.Lock()
+    self.transport = util.TimeoutTransport()
+    self.transport.set_timeout(0.5)
     self.server = ThreadedRPCServer((hostname,port))
     self.server.register_function(self.query_by_hash_num)
     self.server.register_function(self.query_by_filter)
@@ -130,7 +132,7 @@ class Worker(threading.Thread):
           data_is_local = self.data.has_key(key)
         if not data_is_local:
           print "Join: Querying remote server"
-          proxy = xmlrpclib.ServerProxy(assignment)
+          proxy = xmlrpclib.ServerProxy(assignment,transport=self.transport)
           try:
             working_data[index] = self.query_remote(key,proxy)
           except (socket.timeout,KeyError):
@@ -147,7 +149,7 @@ class Worker(threading.Thread):
       working_data = collections.defaultdict(list)
       for peer in peers:
         if peer != self.uri:
-          proxy = xmlrpclib.ServerProxy(peer)
+          proxy = xmlrpclib.ServerProxy(peer,transport=self.transport)
         else:
           proxy = self
         for parent_uid in parents:
@@ -175,7 +177,7 @@ class Worker(threading.Thread):
         data_is_local = self.data.has_key(key)
       if not data_is_local:
         print "Querying remote server"
-        proxy = xmlrpclib.ServerProxy(assignment)
+        proxy = xmlrpclib.ServerProxy(assignment,self.transport)
         try:
           working_data = self.query_remote(key,proxy)
         except (socket.timeout , KeyError):
