@@ -5,6 +5,7 @@ import pickle
 import base64
 import httplib
 import xmlrpclib
+import __builtin__
 
 class HTTP_with_timeout(httplib.HTTP):
     def __init__(self, host='', port=None, strict=None, timeout=5.0):
@@ -54,7 +55,7 @@ def encode_function(function):
     return marshal.dumps(((function.func_code, capture_globals(function)), builtin))
   else:
     builtin = True
-    return marshal.dumps(function.__name__, builtin)
+    return marshal.dumps((function.__name__, builtin))
 
 def decode_function(encoded_function):
   func_data, builtin = marshal.loads(encoded_function)

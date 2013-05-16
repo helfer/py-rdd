@@ -53,8 +53,7 @@ def kill_some(hitlist):
 
 
 ## RDD of (url, [link_destinations])
-links = rdd.TextFileRDD('./pagerank_data.txt', lambda line:
-    line.split(), multivalue = True, scheduler = sched)
+links = rdd.TextFileRDD('./pagerank_data.txt', lambda line: line.split(), multivalue = True, scheduler = sched)
 ## RDD of (url, rank)
 seed_ranks = rdd.TextFileRDD('./urls.txt', lambda line: (line.strip(), 1. /
   N), scheduler = sched)
