@@ -48,7 +48,7 @@ class Worker(threading.Thread):
     self.server.register_function(self.run_task)
     self.server.register_function(self.lookup)
     self.server.register_function(self.ping)
-    self.server.register_function(self.reduce)
+    self.server.register_function(self.worker_reduce)
     self.data = collections.defaultdict(dict) ## map: (rdd_id, hash_num) -> dict
     #self.proxy = xmlrpclib.ServerProxy(scheduler_uri)
     self.uid = str(uuid.uuid1())
@@ -103,9 +103,14 @@ class Worker(threading.Thread):
     with self.lock:
       return self.data[(rdd_id, hash_num)][key]
 
-  def reduce(self, rdd_id, hash_num, func, initializer):
+  def worker_reduce(self, args):
+    rdd_id, hash_num, func, initializer, target = util.pls(args)
     func = util.decode_function(func)
-    return reduce(func, self.data[(rdd_id, hash_num)].items(), initializer)
+    if target == 'keys':
+      return reduce(func, self.data[(rdd_id, hash_num)].keys(), initializer)
+    elif target == 'values':
+      return reduce(func, self.data[(rdd_id, hash_num)].values(), initializer)
+
 
   def query_remote(self,key,proxy,default=None):
     #time.sleep(0.2)

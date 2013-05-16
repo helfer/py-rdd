@@ -80,6 +80,7 @@ class Scheduler:
     if not bad_worker_queue.empty():
       while not bad_worker_queue.empty():
         self.mark_bad_worker(bad_worker_queue.get())
+      print "reexecuting"
       self.execute(rdd, reexecuting = True)
     rdd.fully_scheduled = True
 

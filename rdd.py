@@ -94,7 +94,9 @@ class RDD:
       self.execute()
     return self.worker_assignment[hash_num].lookup(self.uid, hash_num, key)
 
-  def reduce(self, function, initializer):
+  def reduce(self, function, initializer, target = 'keys'):
+    # target = 'keys': reduce across keys
+    # target = 'values': reduce across values
     intermediate_results = []
     encoded_func = util.encode_function(function)
     for num in range(self.hash_grain):
@@ -102,8 +104,9 @@ class RDD:
         assignment = self.worker_assignment[num]
       except KeyError:
         self.execute()
-      intermediate_result = self.worker_assignment[num].reduce(self.uid, num,
-          encoded_func, initializer)
+      proxy = xmlrpclib.ServerProxy(self.worker_assignment[num].uri)
+      args = util.pds(self.uid, num, encoded_func, initializer, target)
+      intermediate_result = proxy.worker_reduce(args)
       intermediate_results.append(intermediate_result)
     return reduce(function, intermediate_results, initializer)
 
@@ -133,7 +136,7 @@ class TextFileRDD(RDD):
       def action(data, hash_num):
         output = collections.defaultdict(list)
         f = open(filename)
-        for line in map(lambda line: line.strip('\n'), f.readlines()):
+        for line in map(lambda li: li.strip('\n'), f.readlines()):
           key, value = function(line)
           if hash_function(key) == hash_num:
             output[key].append(value)

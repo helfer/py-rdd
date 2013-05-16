@@ -49,12 +49,21 @@ def pls(p):
 
 
 def encode_function(function):
-  return marshal.dumps((function.func_code, capture_globals(function)))
+  if type(function) != types.BuiltinFunctionType:
+    builtin = False
+    return marshal.dumps(((function.func_code, capture_globals(function)), builtin))
+  else:
+    builtin = True
+    return marshal.dumps(function.__name__, builtin)
 
 def decode_function(encoded_function):
-  func_code, func_globals = marshal.loads(encoded_function)
-  func_globals = recover_globals(func_globals)
-  return types.FunctionType(func_code, func_globals)
+  func_data, builtin = marshal.loads(encoded_function)
+  if not builtin:
+    func_code, func_globals = func_data
+    func_globals = recover_globals(func_globals)
+    return types.FunctionType(func_code, func_globals)
+  else:
+    return __builtin__.__getattribute__(func_data)
 
 ## TODO: broken
 def flatten(l):
