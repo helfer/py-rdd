@@ -2,7 +2,7 @@ import scheduler
 import rdd
 import worker
 
-baseport = 8500
+baseport = 9500
 N = 2
 workers = []
 
@@ -11,6 +11,6 @@ for i in range(N):
   workers[i].start()
 
 
-sched = scheduler.Scheduler("localhost",8112)
+sched = scheduler.Scheduler("localhost",9112)
 for i in range(N):
   sched.add_worker("http://%s:%d" % ("localhost",baseport+i),i)

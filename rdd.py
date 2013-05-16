@@ -88,13 +88,14 @@ class RDD:
 
   def lookup(self, key):
     hash_num = self.hash_function(key)
-    return self.worker_assignments[hash_num].lookup(self.uid, hash_num, key)
+    try:
+      worker = self.worker_assignment[hash_num]
+    except KeyError:
+      self.execute()
+    return self.worker_assignment[hash_num].lookup(self.uid, hash_num, key)
 
   def map(self, function):
     return PartitionByRDD(IntermediateMapRDD(function, self))
-
-class Dependency:
-  Narrow, Wide = 0, 1
 
 ## For each supported transformation, we have a class derived from RDD
 class TextFileRDD(RDD):

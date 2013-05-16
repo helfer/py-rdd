@@ -46,7 +46,7 @@ class Worker(threading.Thread):
     self.server.register_function(self.query_by_hash_num)
     self.server.register_function(self.query_by_filter)
     self.server.register_function(self.run_task)
-    #self.server.register_function(self.lookup)
+    self.server.register_function(self.lookup)
     self.server.register_function(self.ping)
     self.data = collections.defaultdict(dict) ## map: (rdd_id, hash_num) -> dict
     #self.proxy = xmlrpclib.ServerProxy(scheduler_uri)
@@ -98,9 +98,9 @@ class Worker(threading.Thread):
     #      output.update([(k, v) for k, v in data.items() if func(k)])
     #  return output
 
-  #def lookup(self, rdd_id, hash_num, key):
-  #  with self.lock:
-  #    return self.data[(rdd_id, hash_num)][key]
+  def lookup(self, rdd_id, hash_num, key):
+    with self.lock:
+      return self.data[(rdd_id, hash_num)][key]
 
   def query_remote(self,key,proxy,default=None):
     #time.sleep(0.2)
@@ -131,12 +131,12 @@ class Worker(threading.Thread):
         with self.lock:
           data_is_local = self.data.has_key(key)
         if not data_is_local:
-          print "Join: Querying remote server"
+#          print "Join: Querying remote server"
           proxy = xmlrpclib.ServerProxy(assignment,transport=self.transport)
           try:
             working_data[index] = self.query_remote(key,proxy)
           except (socket.timeout,KeyError):
-            print "timeout or key error"
+#            print "timeout or key error"
             return assignment
         else:
           with self.lock:
@@ -176,12 +176,12 @@ class Worker(threading.Thread):
       with self.lock:
         data_is_local = self.data.has_key(key)
       if not data_is_local:
-        print "Querying remote server"
+#        print "Querying remote server"
         proxy = xmlrpclib.ServerProxy(assignment,self.transport)
         try:
           working_data = self.query_remote(key,proxy)
         except (socket.timeout , KeyError):
-          print "fetch timeout or KeyError"
+#          print "fetch timeout or KeyError"
           return assignment
       else:
         with self.lock:

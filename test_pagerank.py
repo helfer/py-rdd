@@ -64,15 +64,13 @@ def pagerank(links, seed_ranks, iterations):
   ranks = seed_ranks
   for i in range(iterations):
     print i
-    ## RDD (targetURL, [floats])
+    ## RDD (targetURL, [passed_ranks])
     contribs = links.join(ranks, [], 'Z').flatMap(lambda LR: [(dest, LR[1] /
       len(LR[0])) for dest in LR[0]])
-    ## RDD
+    ## RDD (url, updated_ranks)
     ranks = contribs.reduceByKey(lambda x, y: x + y, 0).mapValues(lambda s:
       (1 - a) * s).join(damped_ranks, 0, a / N).mapValues(lambda pair: pair[0] + pair[1])
-    sched.execute(ranks)
-    time.sleep(0.1)
-    #workers[0].stop_server()
+    ranks.execute()
   return ranks
 
 ranks = pagerank(links, seed_ranks, 22)._get_data()
