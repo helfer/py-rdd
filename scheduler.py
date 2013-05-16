@@ -46,8 +46,10 @@ class Scheduler:
     self.queue = Queue.PriorityQueue()
     self.dead = False
     self.max_skipcount = max_skipcount
+    print "Scheduler live"
 
   def add_worker(self, worker_uri, worker_uid):
+    print "Adding worker with id", worker_uid
     worker = WorkerHandler(worker_uri, worker_uid)
     self.workers.add(worker)
     self.idle_workers.add(worker)
@@ -65,6 +67,7 @@ class Scheduler:
         ## If re-executing, just walk the whole graph and check for bad
         ## assignments
         self.execute(parent, reexecuting)
+    print "executing", rdd.__class__, " with hashed ID", hash(rdd.uid)
 
     threads = []
     bad_worker_queue = Queue.Queue()

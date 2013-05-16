@@ -54,7 +54,7 @@ kill_some([1,3,4])
 
 ## RDD of (url, [link_destinations])
 links = rdd.TextFileRDD('./pagerank_data.txt', lambda line:
-    line.split(), multivalue = True, scheduler = sched)
+    line, multivalue = True, scheduler = sched)
 ## RDD of (url, rank)
 seed_ranks = rdd.TextFileRDD('./urls.txt', lambda line: (line.strip(), 1. /
   N), scheduler = sched)

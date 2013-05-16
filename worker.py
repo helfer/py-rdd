@@ -48,6 +48,7 @@ class Worker(threading.Thread):
     self.server.register_function(self.run_task)
     self.server.register_function(self.lookup)
     self.server.register_function(self.ping)
+    self.server.register_function(self.reduce)
     self.data = collections.defaultdict(dict) ## map: (rdd_id, hash_num) -> dict
     #self.proxy = xmlrpclib.ServerProxy(scheduler_uri)
     self.uid = str(uuid.uuid1())
@@ -101,6 +102,10 @@ class Worker(threading.Thread):
   def lookup(self, rdd_id, hash_num, key):
     with self.lock:
       return self.data[(rdd_id, hash_num)][key]
+
+  def reduce(self, rdd_id, hash_num, func, initializer):
+    func = util.decode_function(func)
+    return reduce(func, self.data[(rdd_id, hash_num)].items(), initializer)
 
   def query_remote(self,key,proxy,default=None):
     #time.sleep(0.2)
@@ -189,7 +194,8 @@ class Worker(threading.Thread):
     else:
       working_data = {}
     output = action(working_data, hash_num)
-    if rdd_type == rdd.IntermediateFlatMapRDD:
+    if (rdd_type == rdd.IntermediateFlatMapRDD or
+        rdd_type == rdd.IntermediateMapRDD):
       ## Split output into partial partitions
       for k, v in output.items():
         ## v should be a list
